@@ -37,67 +37,104 @@ const DEMOS=[];
 const R=n=>Math.floor(Math.random()*n), pick=a=>a[R(a.length)];
 const shuf=a=>{for(let i=a.length-1;i>0;i--){const j=R(i+1);[a[i],a[j]]=[a[j],a[i]]}return a};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const COLORS=['#2b6cb0','#c53030','#2f855a','#b7791f','#6b46c1','#d53f8c','#319795','#dd6b20','#4a5568','#975a16'];
+const COLORS=['#2b6cb0','#c53030','#2f855a','#d69e2e','#6b46c1','#d53f8c','#319795','#dd6b20','#4a5568','#111111'];
 const opts=(a,vals,cur)=>vals.map(v=>`<button class="btn ${v===cur?'on':''}" data-a="${a}" data-v="${v}">${v}</button>`).join('');
-DEMOS.push({id:'petri',name:'Petri Dish',genre:'Territory strategy',players:'You vs 1–3 AI',
-pitch:'Grow your colony, invade neighbors, mutate. Antibiotic waves wipe out anything not resistant.',
-how:`Each turn you gain ATP = 3 + nutrient tiles (●) you own, plus trait bonuses. Click a highlighted empty tile next to your colony to <b>grow</b> (1 ATP). Click an adjacent enemy tile to <b>invade</b> (3 ATP). <b>Mutate</b> (4 ATP) offers 2 random traits; pick one. Every 4 rounds an <b>antibiotic wave</b> hits the striped band (warned 1 round ahead) — non-resistant cells there die. Most cells after 20 rounds wins.`,
-bio:`Binary fission = growth. Mutation is random (you only choose among random offers) — selection decides what survives. Resistance carries a fitness cost (−1 ATP/turn). Antibiotic waves = selection pressure. Bacteriocins kill competitors; biofilm protects.`,
+DEMOS.push({id:'petri',name:'Petri Dish',genre:'Territory strategy',players:'2–10 (hot-seat + AI)',
+pitch:'Grow your colony, invade neighbors, climb a mutation tree. Special tiles, antibiotic waves, any map size or a round dish.',
+how:`Each turn you gain ATP (see the breakdown on the right). Click a highlighted empty tile to <b>grow</b> (1 ATP) or an adjacent enemy tile to <b>invade</b> (3 ATP). Unlock traits on the <b>mutation tree</b> below the dish. Special tiles: <b>● Glucose</b> +2 ATP · <b>◐ Lactose</b> +2 only with Lac operon (only +1 if you own 3+ Glucose) · <b>◆ Iron</b> +3 only with Siderophores · <b>☠ Phage hotspot</b> +2 but 25% chance per round to lose it (CRISPR protects) · <b>✦ Free DNA</b> one free random mutation when taken. Every 4 rounds an <b>antibiotic wave</b> hits the striped band (warned 1 round ahead). Most cells at the end, or 50% of the dish, wins.`,
+bio:`Lactose needs the lac operon; with plenty of glucose it's repressed (catabolite repression via cAMP–CAP), and the real crp* mutation removes that. Siderophores scavenge iron. Resistance costs fitness; a compensatory mutation removes the cost. CRISPR = immunity to phage. T6SS = contact-dependent killing. Free DNA = natural transformation. "Random offers" mode is closer to biology: mutation is random and you only select among what appears.`,
 mount(root){
-const N=12,TR={res:{n:'Resistance',d:'Survive antibiotic waves. −1 ATP/turn (fitness cost).'},tox:{n:'Bacteriocin',d:'Invading costs 1 less.'},bio:{n:'Biofilm',d:'Enemies pay +2 to invade you.'},mot:{n:'Flagella',d:'Grow up to 2 tiles away.'},fast:{n:'Rapid division',d:'+2 ATP per turn.'}};
-let S=null,dead=false,nAI=2;const T=(f,ms)=>setTimeout(()=>{if(!dead)f()},ms);
-const nb=i=>{const r=i/N|0,c=i%N,o=[];if(r>0)o.push(i-N);if(r<N-1)o.push(i+N);if(c>0)o.push(i-1);if(c<N-1)o.push(i+1);return o};
-const count=p=>S.grid.filter(o=>o===p).length;
-const nutOwned=p=>S.grid.reduce((a,o,i)=>a+(o===p&&S.nut[i]?1:0),0);
-const income=p=>{const P=S.players[p];return Math.max(1,3+nutOwned(p)+(P.tr.has('fast')?2:0)-(P.tr.has('res')?1:0))};
-const inBand=i=>{const v=S.band.ax==='r'?(i/N|0):i%N;return v>=S.band.st&&v<S.band.st+3};
-const warn=()=>S.round>=S.bandRound-1;
-function reach(p,i){if(S.grid[i]!==-1)return false;const d=S.players[p].tr.has('mot')?2:1,r=i/N|0,c=i%N;
- for(let dr=-d;dr<=d;dr++)for(let dc=-d;dc<=d;dc++){if(Math.abs(dr)+Math.abs(dc)>d||(!dr&&!dc))continue;const rr=r+dr,cc=c+dc;if(rr<0||cc<0||rr>=N||cc>=N)continue;if(S.grid[rr*N+cc]===p)return true}return false}
-function invCost(p,i){const o=S.grid[i];if(o<0||o===p)return null;if(!nb(i).some(j=>S.grid[j]===p))return null;return 3-(S.players[p].tr.has('tox')?1:0)+(S.players[o].tr.has('bio')?2:0)}
-const log=s=>{S.log.unshift(s);S.log.length=Math.min(S.log.length,10)};
-function setup(){S=null;root.innerHTML=`<div class="panel"><div class="bar">Opponents: ${[1,2,3].map(k=>`<button class="btn ${k===nAI?'on':''}" data-a="n" data-v="${k}">${k} AI</button>`).join('')}<button class="btn primary" data-a="start">Start</button></div></div>`}
-function start(){const np=nAI+1,grid=Array(N*N).fill(-1),nut=Array(N*N).fill(false),corners=[[0,0],[N-2,N-2],[0,N-2],[N-2,0]],players=[];
- for(let i=0;i<np;i++){const[r,c]=corners[i];for(const[a,b]of[[0,0],[0,1],[1,0],[1,1]])grid[(r+a)*N+c+b]=i;players.push({name:i?`AI ${i}`:'You',atp:0,tr:new Set(),alive:true,col:COLORS[i]})}
- let k=0;while(k<22){const x=R(N*N);if(grid[x]<0&&!nut[x]){nut[x]=true;k++}}
- S={grid,nut,players,turn:0,round:1,band:null,bandRound:4,offer:null,log:[],over:false};newBand();startTurn()}
-function newBand(){S.band={ax:R(2)?'r':'c',st:R(N-2)}}
-function startTurn(){const P=S.players[S.turn];P.atp=Math.min(15,P.atp+income(S.turn));render();if(S.turn!==0)T(aiTurn,450)}
-function nextTurn(){if(S.over)return;let t=S.turn;
- do{t=(t+1)%S.players.length;if(t===0){S.round++;roundStart();if(S.over)return}}while(!S.players[t].alive);
- S.turn=t;startTurn()}
-function roundStart(){if(S.round===S.bandRound){let k=0;S.grid.forEach((o,i)=>{if(o>=0&&inBand(i)&&!S.players[o].tr.has('res')){S.grid[i]=-1;k++}});log(`💊 Antibiotic wave! ${k} cells killed.`);S.bandRound+=4;newBand()}
- S.players.forEach((P,i)=>{if(P.alive&&count(i)===0){P.alive=false;log(`${P.name} wiped out.`)}});
- if(S.round>20||S.players.filter(p=>p.alive).length<=1||!S.players[0].alive)end()}
+const TREE={lac:{n:'Lac operon',b:0,t:1,q:[],d:'Harvest Lactose tiles.'},sid:{n:'Siderophores',b:0,t:1,q:[],d:'Harvest Iron tiles (+3 each).'},
+ crp:{n:'crp* (CAP needs no cAMP)',b:0,t:2,q:['lac'],d:'No catabolite repression: Lactose stays +2 with lots of Glucose.'},fast:{n:'Rapid division',b:0,t:2,q:['lac','sid'],d:'+2 ATP per turn.'},
+ qs:{n:'Quorum sensing',b:0,t:3,q:['fast'],d:'+1 ATP per 8 cells you own.'},
+ tox:{n:'Bacteriocin',b:1,t:1,q:[],d:'Invading costs 1 less.'},prot:{n:'Matrix protease',b:1,t:2,q:['tox'],d:'Ignore enemy Biofilm surcharge.'},t6:{n:'T6SS needle',b:1,t:3,q:['prot'],d:'Your first invasion each turn is free.'},
+ mot:{n:'Flagella',b:2,t:1,q:[],d:'Grow up to 2 tiles away.'},chemo:{n:'Chemotaxis',b:2,t:2,q:['mot'],d:'Growing onto special tiles is free.'},swarm:{n:'Swarming',b:2,t:3,q:['chemo'],d:'Grow up to 3 tiles away.'},
+ bio:{n:'Biofilm',b:3,t:1,q:[],d:'Enemies pay +2 to invade you.'},res:{n:'Resistance plasmid',b:3,t:1,q:[],d:'Survive antibiotic waves. −1 ATP/turn.'},
+ comp:{n:'Compensatory mutation',b:3,t:2,q:['res'],d:'Removes the resistance cost.'},cr:{n:'CRISPR',b:3,t:2,q:['bio','res'],d:'Never lose Phage hotspots.'},spore:{n:'Endospores',b:3,t:3,q:['bio'],d:'Once per game: when wiped out, respawn as a 2×2 colony.'}};
+const BR=['Metabolism','Offense','Movement','Defense'],TC=[0,4,6,8],MCOST=4;
+const TL={glu:{s:'●',c:'#b7791f'},lac:{s:'◐',c:'#975a16'},fe:{s:'◆',c:'#4a5568'},phg:{s:'☠',c:'#c53030'},dna:{s:'✦',c:'#6b46c1'}};
+const AUTO={2:12,3:14,4:16,5:18,6:20,7:22,8:24,9:26,10:28};
+let cfg={n:4,hum:1,shape:'Square',size:'Auto',rounds:20,mode:'Random offers'},S=null,dead=false;const T=(f,ms)=>setTimeout(()=>{if(!dead)f()},ms);
+const log=s=>{S.log.unshift(s);S.log.length=Math.min(S.log.length,14)};
+function setup(){S=null;root.innerHTML=`<div class="panel" style="max-width:640px">
+ <div>Players <div class="bar">${opts('n',[2,3,4,5,6,7,8,9,10],cfg.n)}</div></div>
+ <div>Humans (hot-seat, rest are AI) <div class="bar">${opts('hum',Array.from({length:cfg.n},(_,i)=>i+1),cfg.hum)}</div></div>
+ <div>Dish shape <div class="bar">${opts('shape',['Square','Circle'],cfg.shape)}</div></div>
+ <div>Size <div class="bar">${opts('size',['Auto','Custom'],cfg.size)} ${cfg.size==='Custom'?`<input id="sz" type="number" min="8" max="40" value="${S?.N||AUTO[cfg.n]}" style="width:70px;font:inherit;padding:4px"> × same (8–40)`:`<span class="mut">${AUTO[cfg.n]}×${AUTO[cfg.n]}</span>`}</div></div>
+ <div>Rounds <div class="bar">${opts('rounds',[15,20,30],cfg.rounds)}</div></div>
+ <div>Mutation mode <div class="bar">${opts('mode',['Random offers','Pick from tree'],cfg.mode)}</div><div class="mut" style="font-size:.82rem">Random offers: pay ${MCOST} ATP, choose 1 of 3 random unlockable traits. Pick from tree: buy any unlockable trait directly (tier 1/2/3 = 4/6/8 ATP).</div></div>
+ <button class="btn primary" data-a="start" style="margin-top:8px">Start</button></div>`}
+function start(){const n=cfg.n,inp=root.querySelector('#sz');let N=cfg.size==='Custom'&&inp?Math.max(8,Math.min(40,+inp.value||AUTO[n])):AUTO[n];
+ const c0=(N-1)/2,land=Array(N*N).fill(true);if(cfg.shape==='Circle')for(let i=0;i<N*N;i++){const r=i/N|0,c=i%N;land[i]=(r-c0)**2+(c-c0)**2<=(N/2)**2}
+ const grid=Array(N*N).fill(-1),tile=Array(N*N).fill(null),players=[];
+ const ok=(r,c)=>r>=0&&c>=0&&r<N-1&&c<N-1&&[0,1,N,N+1].every(o=>land[r*N+c+o]&&grid[r*N+c+o]<0);
+ const off=Math.random()*6.28;for(let i=0;i<n;i++){const a=off+6.283*i/n,tr=c0+.36*N*Math.sin(a),tc=c0+.36*N*Math.cos(a);let best=null,bd=1e9;
+  for(let r=0;r<N-1;r++)for(let c=0;c<N-1;c++)if(ok(r,c)){const d=(r-tr)**2+(c-tc)**2;if(d<bd){bd=d;best=[r,c]}}
+  if(best)[0,1,N,N+1].forEach(o=>grid[best[0]*N+best[1]+o]=i);
+  players.push({name:i<cfg.hum?(cfg.hum>1?`Player ${i+1}`:'You'):`AI ${i-cfg.hum+1}`,ai:i>=cfg.hum,atp:0,tr:new Set(),alive:!!best,col:COLORS[i],spored:false,t6:false})}
+ const L=land.reduce((a,x)=>a+x,0);for(const[k,f]of[['glu',.06],['lac',.06],['fe',.04],['phg',.03],['dna',.02]]){let m=Math.round(L*f),g=0;while(m>0&&g++<9999){const x=R(N*N);if(land[x]&&grid[x]<0&&!tile[x]){tile[x]=k;m--}}}
+ S={N,land,grid,tile,players,turn:0,round:1,bandRound:4,band:null,offer:null,log:[],over:false,L};newBand();startTurn()}
+function newBand(){S.band={ax:R(2)?'r':'c',w:Math.max(2,Math.round(S.N/5))};S.band.st=R(S.N-S.band.w+1)}
+const N=()=>S.N,inBand=i=>{const v=S.band.ax==='r'?(i/N()|0):i%N();return v>=S.band.st&&v<S.band.st+S.band.w},warn=()=>S.round>=S.bandRound-1;
+const count=p=>S.grid.reduce((a,o)=>a+(o===p),0),has=(p,k)=>S.players[p].tr.has(k);
+const nb=i=>{const n=N(),r=i/n|0,c=i%n,o=[];if(r>0)o.push(i-n);if(r<n-1)o.push(i+n);if(c>0)o.push(i-1);if(c<n-1)o.push(i+1);return o.filter(j=>S.land[j])};
+function tileVal(p,k,gluN){if(k==='glu'||k==='phg')return 2;if(k==='lac')return has(p,'lac')?(gluN>=3&&!has(p,'crp')?1:2):0;if(k==='fe')return has(p,'sid')?3:0;return 0}
+function incomeParts(p){const cells=count(p);let tiles=0,gluN=0;S.grid.forEach((o,i)=>{if(o===p&&S.tile[i]==='glu')gluN++});S.grid.forEach((o,i)=>{if(o===p&&S.tile[i])tiles+=tileVal(p,S.tile[i],gluN)});
+ const parts=[['base',3],['colony',cells/10|0],['tiles',tiles]];if(has(p,'fast'))parts.push(['rapid',2]);if(has(p,'qs'))parts.push(['quorum',cells/8|0]);if(has(p,'res')&&!has(p,'comp'))parts.push(['resist',-1]);return parts}
+const income=p=>Math.max(1,incomeParts(p).reduce((a,x)=>a+x[1],0));
+function reachSet(p){const d=has(p,'swarm')?3:has(p,'mot')?2:1,n=N(),out=new Set();S.grid.forEach((o,i)=>{if(o!==p)return;const r=i/n|0,c=i%n;
+ for(let a=-d;a<=d;a++)for(let b=-d;b<=d;b++){if(Math.abs(a)+Math.abs(b)>d)continue;const rr=r+a,cc=c+b;if(rr<0||cc<0||rr>=n||cc>=n)continue;const j=rr*n+cc;if(S.land[j]&&S.grid[j]===-1)out.add(j)}});return out}
+const growCost=(p,i)=>has(p,'chemo')&&S.tile[i]?0:1;
+function invCost(p,i){const o=S.grid[i];if(o<0||o===p||!nb(i).some(j=>S.grid[j]===p))return null;if(has(p,'t6')&&!S.players[p].t6)return 0;return Math.max(1,3-(has(p,'tox')?1:0)+(has(o,'bio')&&!has(p,'prot')?2:0))}
+const unlockable=p=>Object.keys(TREE).filter(k=>!has(p,k)&&(TREE[k].q.length===0||TREE[k].q.some(x=>has(p,x))));
+function gain(p,k,why){S.players[p].tr.add(k);log(`🧬 ${S.players[p].name} ${why}: ${TREE[k].n}`)}
+function take(p,i){const o=S.grid[i];S.grid[i]=p;if(S.tile[i]==='dna'){S.tile[i]=null;const u=unlockable(p);if(u.length)gain(p,pick(u),'picked up free DNA')}if(o>=0)checkDeath(o)}
+function checkDeath(o){const P=S.players[o];if(!P.alive||count(o)>0)return;if(has(o,'spore')&&!P.spored){P.spored=true;const n=N();for(let g=0;g<999;g++){const r=R(n-1),c=R(n-1),cs=[0,1,n,n+1].map(x=>r*n+c+x);if(cs.every(j=>S.land[j]&&S.grid[j]<0)){cs.forEach(j=>S.grid[j]=o);log(`🦠 ${P.name}'s endospores germinate!`);return}}}P.alive=false;log(`☠ ${P.name} is wiped out.`)}
+function act(p,i){const P=S.players[p];if(reachSet(p).has(i)){const c=growCost(p,i);if(P.atp>=c){P.atp-=c;take(p,i);return true}return false}
+ const c=invCost(p,i);if(c!=null&&P.atp>=c){if(c===0&&has(p,'t6'))P.t6=true;P.atp-=c;take(p,i);return true}return false}
+function startTurn(){const P=S.players[S.turn];P.t6=false;P.atp=Math.min(20,P.atp+income(S.turn));S.offer=null;render();if(P.ai)T(aiTurn,Math.max(150,500-S.players.length*30))}
+function nextTurn(){if(S.over)return;if(S.players.filter(p=>p.alive).length<=1)return end();let t=S.turn;
+ do{t=(t+1)%S.players.length;if(t===0){S.round++;roundStart();if(S.over)return}}while(!S.players[t].alive);S.turn=t;startTurn()}
+function roundStart(){if(S.round===S.bandRound){let k=0;S.grid.forEach((o,i)=>{if(o>=0&&inBand(i)&&!has(o,'res')){S.grid[i]=-1;k++}});log(`💊 Antibiotic wave! ${k} cells killed.`);S.bandRound+=4;newBand();S.players.forEach((_,i)=>checkDeath(i))}
+ S.grid.forEach((o,i)=>{if(o>=0&&S.tile[i]==='phg'&&!has(o,'cr')&&Math.random()<.25){S.grid[i]=-1;log(`☠ Phage lyses a ${S.players[o].name} cell on a hotspot.`);checkDeath(o)}});
+ if(S.round>cfg.rounds||S.players.filter(p=>p.alive).length<=1||S.players.every(p=>p.ai||!p.alive))end()}
 function end(){S.over=true;const sc=S.players.map((p,i)=>count(i)),b=Math.max(...sc);log(`🏁 ${S.players.filter((p,i)=>sc[i]===b).map(p=>p.name).join(' & ')} wins with ${b} cells.`);render()}
-function act(p,i){const P=S.players[p];if(reach(p,i)&&P.atp>=1){P.atp--;S.grid[i]=p;return true}
- const c=invCost(p,i);if(c!=null&&P.atp>=c){const o=S.grid[i];P.atp-=c;S.grid[i]=p;if(count(o)===0){S.players[o].alive=false;log(`${S.players[o].name} wiped out by ${P.name}.`)}return true}return false}
-function mutate(p){const P=S.players[p],pool=Object.keys(TR).filter(k=>!P.tr.has(k));if(P.atp<4||!pool.length)return null;P.atp-=4;return shuf(pool).slice(0,2)}
+function afterAct(p){if(count(p)*2>=S.L){log(`🏁 ${S.players[p].name} controls half the dish!`);return end()}if(S.players.filter(x=>x.alive).length<=1)return end();render()}
+function nodeVal(p,k){const near=t=>S.grid.reduce((a,o,i)=>a+(S.tile[i]===t&&(o===p||o===-1)?1:0),0);
+ return {lac:near('lac')*1.2,sid:near('fe')*1.5,crp:has(p,'lac')?2:0,fast:4,qs:count(p)/6,tox:3,prot:2,t6:3,mot:2.5,chemo:2,swarm:2,bio:2.5,res:warn()?6:2.5,comp:has(p,'res')?3:0,cr:near('phg')*1.5,spore:1.5}[k]+Math.random()}
+function buy(p,k){const P=S.players[p],c=TC[TREE[k].t];if(!unlockable(p).includes(k)||P.atp<c)return false;P.atp-=c;gain(p,k,'evolved');return true}
 function aiTurn(){if(S.over)return;const p=S.turn,P=S.players[p];
- if(P.atp>=6&&P.tr.size<3&&Math.random()<.6){const off=mutate(p);if(off){const pref=['res','fast','tox','mot','bio'];let ch=off.sort((a,b)=>pref.indexOf(a)-pref.indexOf(b))[0];P.tr.add(ch);log(`${P.name} mutated: ${TR[ch].n}`)}}
- for(let g=0;g<60;g++){let best=null,bs=-1e9;
-  for(let i=0;i<N*N;i++){let cost=null,s=0;if(reach(p,i))cost=1;else{const c=invCost(p,i);if(c!=null){cost=c;s+=1.5+(count(S.grid[i])<4?3:0)}}
-   if(cost==null||cost>P.atp)continue;if(S.nut[i])s+=3;s+=nb(i).filter(j=>S.grid[j]===p).length*.4;if(warn()&&inBand(i)&&!P.tr.has('res'))s-=2.5;
-   s=s/cost+Math.random()*.3;if(s>bs){bs=s;best=i}}
-  if(best==null)break;act(p,best)}
- if(S.players.filter(p=>p.alive).length<=1||!S.players[0].alive){end();return}
- render();T(nextTurn,350)}
-function render(){const my=S.turn===0&&!S.over&&!S.offer,w=warn();
- const cells=S.grid.map((o,i)=>{const ic=my?invCost(0,i):null,can=my&&(reach(0,i)||ic!=null);
-  const bg=o>=0?S.players[o].col:'#efebe2',stripe=w&&inBand(i)?'background-image:repeating-linear-gradient(45deg,#0000 0 5px,#d69e2e99 5px 9px);':'';
-  return `<div class="cell" data-a="cell" data-i="${i}" title="${can?(ic!=null?'Invade: '+ic+' ATP':'Grow: 1 ATP'):''}" style="width:34px;height:34px;background:${bg};${stripe}border-radius:5px;cursor:${can?'pointer':'default'};outline:${can?'2px solid #2b6cb088':'none'};color:${o>=0?'#fff':'#b7791f'}">${S.nut[i]?'●':''}</div>`}).join('');
- const P0=S.players[0];
- root.innerHTML=`<div class="layout"><div class="panel"><div style="display:grid;grid-template-columns:repeat(${N},34px);gap:3px;width:max-content;max-width:100%;overflow:auto">${cells}</div></div>
- <div class="panel"><div class="big">Round ${Math.min(S.round,20)}/20</div><div class="mut">Next antibiotic wave: round ${S.bandRound}${w?' — <b style="color:#b7791f">INCOMING (striped band)</b>':''}</div>
- ${S.players.map((P,i)=>`<div style="margin-top:6px;${S.turn===i&&!S.over?'font-weight:700':''}"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${P.col}"></span> ${P.name}${P.alive?'':' ☠'} — ${count(i)} cells, ${P.atp} ATP (+${income(i)}/turn)<br>${[...P.tr].map(k=>`<span class="chip" title="${TR[k].d}">${TR[k].n}</span>`).join('')}</div>`).join('')}
- <div class="bar" style="margin-top:10px">${S.over?`<button class="btn primary" data-a="again">New game</button>`:S.offer?`Pick a mutation: ${S.offer.map(k=>`<button class="btn" data-a="pick" data-v="${k}" title="${TR[k].d}">${TR[k].n}</button>`).join('')}<div class="mut" style="font-size:.8rem">${S.offer.map(k=>TR[k].n+': '+TR[k].d).join('<br>')}</div>`:S.turn===0?`<button class="btn" data-a="mut" ${P0.atp<4||P0.tr.size>=5?'disabled':''}>Mutate (4 ATP)</button><button class="btn primary" data-a="end">End turn</button>`:'<span class="mut">AI thinking…</span>'}</div>
+ if(Math.random()<.65){if(cfg.mode==='Random offers'){if(P.atp>=MCOST+2){const u=shuf(unlockable(p)).slice(0,3);if(u.length){P.atp-=MCOST;gain(p,u.sort((a,b)=>nodeVal(p,b)-nodeVal(p,a))[0],'mutated')}}}
+  else{const u=unlockable(p).filter(k=>TC[TREE[k].t]+2<=P.atp).sort((a,b)=>nodeVal(p,b)-nodeVal(p,a));if(u.length)buy(p,u[0])}}
+ for(let g=0;g<80&&!S.over;g++){const rs=reachSet(p),gluN=S.grid.reduce((a,o,i)=>a+(o===p&&S.tile[i]==='glu'),0);let best=null,bs=-1e9;
+  const score=(i,cost,inv)=>{if(cost>P.atp)return;let s=inv?1.5+(count(S.grid[i])<5?3:0):0;const k=S.tile[i];if(k)s+=tileVal(p,k,gluN)*1.6+(k==='dna'?4:0)+(k==='lac'||k==='fe'?.5:0)-(k==='phg'&&!has(p,'cr')?1:0);
+   s+=nb(i).filter(j=>S.grid[j]===p).length*.4;if(warn()&&inBand(i)&&!has(p,'res'))s-=2.5;s=s/Math.max(cost,.5)+Math.random()*.3;if(s>bs){bs=s;best=i}};
+  rs.forEach(i=>score(i,growCost(p,i),false));S.grid.forEach((o,i)=>{if(o>=0&&o!==p){const c=invCost(p,i);if(c!=null)score(i,c,true)}});
+  if(best==null)break;act(p,best);if(count(p)*2>=S.L){afterAct(p);return}}
+ if(S.over)return;if(S.players.filter(x=>x.alive).length<=1)return end();render();T(nextTurn,250)}
+function treeHTML(p,clickable){return `<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:6px">${BR.map((b,bi)=>`<div><b style="font-size:.85rem">${b}</b>${Object.entries(TREE).filter(([k,v])=>v.b===bi).map(([k,v])=>{const own=has(p,k),can=!own&&unlockable(p).includes(k),afford=can&&S.players[p].atp>=TC[v.t];
+ return `<div ${clickable&&afford?`data-a="buy" data-v="${k}"`:''} title="${esc(v.d)}${v.q.length?' | needs: '+v.q.map(x=>TREE[x].n).join(' or '):''}" style="margin-top:4px;padding:4px 6px;border-radius:7px;font-size:.78rem;border:1.5px ${can?'solid':'dashed'} ${own?S.players[p].col:can?'#2b6cb0':'#ccc'};background:${own?S.players[p].col:'#fff'};color:${own?'#fff':can?'#1d2430':'#999'};cursor:${clickable&&afford?'pointer':'default'}">T${v.t} ${v.n}${cfg.mode==='Pick from tree'&&!own?` · ${TC[v.t]}⚡`:''}<div style="font-size:.7rem;opacity:.85">${v.d}</div></div>`}).join('')}</div>`).join('')}</div>`}
+function render(){const n=N(),cur=S.players[S.turn],my=!cur.ai&&!S.over,px=Math.max(9,Math.min(34,Math.floor(640/n))),w=warn();
+ const rs=my&&!S.offer?reachSet(S.turn):new Set();
+ const cells=S.grid.map((o,i)=>{if(!S.land[i])return `<div style="width:${px}px;height:${px}px"></div>`;const ic=my&&!S.offer?invCost(S.turn,i):null,can=rs.has(i)||ic!=null,k=S.tile[i];
+  const bg=o>=0?S.players[o].col:'#efebe2',stripe=w&&inBand(i)?'background-image:repeating-linear-gradient(45deg,#0000 0 4px,#d69e2e99 4px 7px);':'';
+  return `<div class="cell" data-a="cell" data-i="${i}" title="${can?(ic!=null?'Invade: '+ic+' ATP':'Grow: '+growCost(S.turn,i)+' ATP'):''}${k?' · '+k:''}" style="width:${px}px;height:${px}px;font-size:${px*.6}px;background:${bg};${stripe}border-radius:${px/6}px;cursor:${can?'pointer':'default'};outline:${can?'2px solid #2b6cb088':'none'};outline-offset:-2px;color:${o>=0?'#fff':k?TL[k].c:'#000'}">${k&&px>=12?TL[k].s:''}</div>`}).join('');
+ const rank=S.players.map((P,i)=>i).sort((a,b)=>count(b)-count(a));
+ root.innerHTML=`<div class="layout"><div><div class="panel" style="overflow:auto"><div style="display:grid;grid-template-columns:repeat(${n},${px}px);gap:${px>=16?2:1}px;width:max-content">${cells}</div></div>
+ <div class="panel" style="margin-top:8px"><b>Mutation tree — ${esc(cur.name)}</b> <span class="mut" style="font-size:.82rem">(solid outline = unlockable now · hover for details)</span>${treeHTML(S.turn,my&&cfg.mode==='Pick from tree')}</div></div>
+ <div class="panel"><div class="big">Round ${Math.min(S.round,cfg.rounds)}/${cfg.rounds}</div><div class="mut">Next antibiotic wave: round ${S.bandRound}${w?' — <b style="color:#b7791f">INCOMING (striped)</b>':''}</div>
+ ${S.over?`<div class="over">Game over</div><button class="btn primary" data-a="again">New game</button>`:my?`<div style="margin-top:8px"><b style="color:${cur.col}">${cur.name==='You'?'Your':esc(cur.name)+"'s"} turn</b> — ${cur.atp} ATP<div class="mut" style="font-size:.8rem">income: ${incomeParts(S.turn).filter(x=>x[1]).map(x=>x[0]+' '+(x[1]>0?'+':'')+x[1]).join(', ')}</div>
+  ${S.offer?`<div>Pick a mutation:</div>${S.offer.map(k=>`<button class="btn" data-a="pick" data-v="${k}" title="${esc(TREE[k].d)}">${TREE[k].n}</button>`).join('')}<div class="mut" style="font-size:.8rem">${S.offer.map(k=>`<b>${TREE[k].n}</b>: ${TREE[k].d}`).join('<br>')}</div>`:
+  `<div class="bar">${cfg.mode==='Random offers'?`<button class="btn" data-a="mut" ${cur.atp<MCOST||!unlockable(S.turn).length?'disabled':''}>Mutate (${MCOST} ATP)</button>`:'<span class="mut" style="font-size:.82rem">Click a tree node to buy</span>'}<button class="btn primary" data-a="end">End turn</button></div>`}</div>`:`<p class="mut">${esc(cur.name)} thinking…</p>`}
+ <div style="margin-top:8px;max-height:260px;overflow:auto">${rank.map(i=>{const P=S.players[i];return `<div style="font-size:.85rem;margin-top:3px;${S.turn===i&&!S.over?'font-weight:700':''}"><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:${P.col}"></span> ${esc(P.name)}${P.alive?'':' ☠'} — ${count(i)} cells · ${P.atp}⚡ (+${income(i)}) · ${P.tr.size} traits</div>`}).join('')}</div>
  <div class="log">${S.log.map(l=>`<div>${l}</div>`).join('')}</div></div></div>`}
-root.onclick=e=>{const t=e.target.closest('[data-a]');if(!t)return;const a=t.dataset.a;
- if(a==='n'){nAI=+t.dataset.v;setup();return}if(a==='start'){start();return}if(a==='again'){setup();return}
- if(!S||S.over||S.turn!==0)return;
- if(a==='cell'&&!S.offer){if(act(0,+t.dataset.i)){if(S.players.filter(p=>p.alive).length<=1)end();else render()}}
- else if(a==='mut'){S.offer=mutate(0);render()}
- else if(a==='pick'&&S.offer){S.players[0].tr.add(t.dataset.v);log(`You mutated: ${TR[t.dataset.v].n}`);S.offer=null;render()}
+root.onclick=e=>{const t=e.target.closest('[data-a]');if(!t)return;const a=t.dataset.a,v=t.dataset.v;
+ if(!S){if(a==='n'){cfg.n=+v;cfg.hum=Math.min(cfg.hum,cfg.n);setup()}else if(a==='hum'){cfg.hum=+v;setup()}else if(a==='shape'){cfg.shape=v;setup()}else if(a==='size'){cfg.size=v;setup()}else if(a==='rounds'){cfg.rounds=+v;setup()}else if(a==='mode'){cfg.mode=v;setup()}else if(a==='start')start();return}
+ if(a==='again'){setup();return}const p=S.turn;if(S.over||S.players[p].ai)return;
+ if(a==='cell'&&!S.offer){if(act(p,+t.dataset.i))afterAct(p)}
+ else if(a==='mut'&&S.players[p].atp>=MCOST){const u=shuf(unlockable(p)).slice(0,3);if(u.length){S.players[p].atp-=MCOST;S.offer=u;render()}}
+ else if(a==='pick'&&S.offer){gain(p,v,'mutated');S.offer=null;render()}
+ else if(a==='buy'){if(buy(p,v))render()}
  else if(a==='end'&&!S.offer)nextTurn()};
 setup();return()=>{dead=true}}});
 
