@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bio Game Demos</title>
+<style>
+:root{--bg:#f7f5f0;--fg:#1d2430;--mut:#667085;--line:#d9d4c7;--card:#fff;--acc:#2b6cb0;--good:#2f855a;--bad:#c53030}
+*{box-sizing:border-box}body{margin:0;font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--fg)}
+.wrap{max-width:1200px;margin:0 auto;padding:18px}
+h1{margin:0 0 4px;font-size:1.5rem}h2{margin:0;font-size:1.25rem}.mut{color:var(--mut)}
+.menu{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:14px}
+.mcard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;cursor:pointer;transition:transform .1s}
+.mcard:hover{transform:translateY(-2px);border-color:var(--acc)}
+.mcard .g{font-size:.8rem;color:var(--acc);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.mcard h3{margin:4px 0}.mcard p{margin:4px 0;font-size:.9rem}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+details.info{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 12px;margin-bottom:10px}
+details.info summary{cursor:pointer;font-weight:600}
+.btn{font:inherit;border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;margin:2px}
+.btn:hover{border-color:var(--acc)}.btn.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.btn.primary{background:var(--fg);color:#fff;border-color:var(--fg)}.btn:disabled{opacity:.4;cursor:default}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+@media(max-width:860px){.layout{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+.log{font-size:.85rem;color:var(--mut);display:flex;flex-direction:column;gap:2px;margin-top:8px;max-height:220px;overflow:auto}
+.log div:first-child{color:var(--fg)}
+.chip{display:inline-block;font-size:.78rem;border:1px solid var(--line);border-radius:999px;padding:1px 8px;margin:1px;background:#fff}
+.gc{display:inline-flex;flex-direction:column;width:118px;min-height:150px;vertical-align:top;background:#fff;border:2px solid var(--line);border-radius:10px;padding:7px;margin:3px;font-size:.78rem;cursor:pointer;position:relative}
+.gc:hover{border-color:var(--acc)}.gc b{font-size:.86rem}.gc.sel{border-color:var(--acc);box-shadow:0 0 0 3px #2b6cb044}
+.gc.dis{opacity:.45;cursor:default}.gc .k{font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+.big{font-size:1.15rem;font-weight:700}
+.over{background:#1d2430;color:#fff;border-radius:10px;padding:10px 14px;margin:8px 0}
+canvas{max-width:100%;background:#fff;border:1px solid var(--line);border-radius:10px;display:block}
+.cell{display:flex;align-items:center;justify-content:center;user-select:none}
+</style></head><body><div class="wrap" id="app"></div>
+<script>
+const DEMOS=[];
+const R=n=>Math.floor(Math.random()*n), pick=a=>a[R(a.length)];
+const shuf=a=>{for(let i=a.length-1;i>0;i--){const j=R(i+1);[a[i],a[j]]=[a[j],a[i]]}return a};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const COLORS=['#2b6cb0','#c53030','#2f855a','#b7791f','#6b46c1','#d53f8c','#319795','#dd6b20','#4a5568','#975a16'];
+const opts=(a,vals,cur)=>vals.map(v=>`<button class="btn ${v===cur?'on':''}" data-a="${a}" data-v="${v}">${v}</button>`).join('');
+DEMOS.push({id:'petri',name:'Petri Dish',genre:'Territory strategy',players:'You vs 1–3 AI',
+pitch:'Grow your colony, invade neighbors, mutate. Antibiotic waves wipe out anything not resistant.',
+how:`Each turn you gain ATP = 3 + nutrient tiles (●) you own, plus trait bonuses. Click a highlighted empty tile next to your colony to <b>grow</b> (1 ATP). Click an adjacent enemy tile to <b>invade</b> (3 ATP). <b>Mutate</b> (4 ATP) offers 2 random traits; pick one. Every 4 rounds an <b>antibiotic wave</b> hits the striped band (warned 1 round ahead) — non-resistant cells there die. Most cells after 20 rounds wins.`,
+bio:`Binary fission = growth. Mutation is random (you only choose among random offers) — selection decides what survives. Resistance carries a fitness cost (−1 ATP/turn). Antibiotic waves = selection pressure. Bacteriocins kill competitors; biofilm protects.`,
+mount(root){
+const N=12,TR={res:{n:'Resistance',d:'Survive antibiotic waves. −1 ATP/turn (fitness cost).'},tox:{n:'Bacteriocin',d:'Invading costs 1 less.'},bio:{n:'Biofilm',d:'Enemies pay +2 to invade you.'},mot:{n:'Flagella',d:'Grow up to 2 tiles away.'},fast:{n:'Rapid division',d:'+2 ATP per turn.'}};
+let S=null,dead=false,nAI=2;const T=(f,ms)=>setTimeout(()=>{if(!dead)f()},ms);
+const nb=i=>{const r=i/N|0,c=i%N,o=[];if(r>0)o.push(i-N);if(r<N-1)o.push(i+N);if(c>0)o.push(i-1);if(c<N-1)o.push(i+1);return o};
+const count=p=>S.grid.filter(o=>o===p).length;
+const nutOwned=p=>S.grid.reduce((a,o,i)=>a+(o===p&&S.nut[i]?1:0),0);
+const income=p=>{const P=S.players[p];return Math.max(1,3+nutOwned(p)+(P.tr.has('fast')?2:0)-(P.tr.has('res')?1:0))};
+const inBand=i=>{const v=S.band.ax==='r'?(i/N|0):i%N;return v>=S.band.st&&v<S.band.st+3};
+const warn=()=>S.round>=S.bandRound-1;
+function reach(p,i){if(S.grid[i]!==-1)return false;const d=S.players[p].tr.has('mot')?2:1,r=i/N|0,c=i%N;
+ for(let dr=-d;dr<=d;dr++)for(let dc=-d;dc<=d;dc++){if(Math.abs(dr)+Math.abs(dc)>d||(!dr&&!dc))continue;const rr=r+dr,cc=c+dc;if(rr<0||cc<0||rr>=N||cc>=N)continue;if(S.grid[rr*N+cc]===p)return true}return false}
+function invCost(p,i){const o=S.grid[i];if(o<0||o===p)return null;if(!nb(i).some(j=>S.grid[j]===p))return null;return 3-(S.players[p].tr.has('tox')?1:0)+(S.players[o].tr.has('bio')?2:0)}
+const log=s=>{S.log.unshift(s);S.log.length=Math.min(S.log.length,10)};
+function setup(){S=null;root.innerHTML=`<div class="panel"><div class="bar">Opponents: ${[1,2,3].map(k=>`<button class="btn ${k===nAI?'on':''}" data-a="n" data-v="${k}">${k} AI</button>`).join('')}<button class="btn primary" data-a="start">Start</button></div></div>`}
+function start(){const np=nAI+1,grid=Array(N*N).fill(-1),nut=Array(N*N).fill(false),corners=[[0,0],[N-2,N-2],[0,N-2],[N-2,0]],players=[];
+ for(let i=0;i<np;i++){const[r,c]=corners[i];for(const[a,b]of[[0,0],[0,1],[1,0],[1,1]])grid[(r+a)*N+c+b]=i;players.push({name:i?`AI ${i}`:'You',atp:0,tr:new Set(),alive:true,col:COLORS[i]})}
+ let k=0;while(k<22){const x=R(N*N);if(grid[x]<0&&!nut[x]){nut[x]=true;k++}}
+ S={grid,nut,players,turn:0,round:1,band:null,bandRound:4,offer:null,log:[],over:false};newBand();startTurn()}
+function newBand(){S.band={ax:R(2)?'r':'c',st:R(N-2)}}
+function startTurn(){const P=S.players[S.turn];P.atp=Math.min(15,P.atp+income(S.turn));render();if(S.turn!==0)T(aiTurn,450)}
+function nextTurn(){if(S.over)return;let t=S.turn;
+ do{t=(t+1)%S.players.length;if(t===0){S.round++;roundStart();if(S.over)return}}while(!S.players[t].alive);
+ S.turn=t;startTurn()}
+function roundStart(){if(S.round===S.bandRound){let k=0;S.grid.forEach((o,i)=>{if(o>=0&&inBand(i)&&!S.players[o].tr.has('res')){S.grid[i]=-1;k++}});log(`💊 Antibiotic wave! ${k} cells killed.`);S.bandRound+=4;newBand()}
+ S.players.forEach((P,i)=>{if(P.alive&&count(i)===0){P.alive=false;log(`${P.name} wiped out.`)}});
+ if(S.round>20||S.players.filter(p=>p.alive).length<=1||!S.players[0].alive)end()}
+function end(){S.over=true;const sc=S.players.map((p,i)=>count(i)),b=Math.max(...sc);log(`🏁 ${S.players.filter((p,i)=>sc[i]===b).map(p=>p.name).join(' & ')} wins with ${b} cells.`);render()}
+function act(p,i){const P=S.players[p];if(reach(p,i)&&P.atp>=1){P.atp--;S.grid[i]=p;return true}
+ const c=invCost(p,i);if(c!=null&&P.atp>=c){const o=S.grid[i];P.atp-=c;S.grid[i]=p;if(count(o)===0){S.players[o].alive=false;log(`${S.players[o].name} wiped out by ${P.name}.`)}return true}return false}
+function mutate(p){const P=S.players[p],pool=Object.keys(TR).filter(k=>!P.tr.has(k));if(P.atp<4||!pool.length)return null;P.atp-=4;return shuf(pool).slice(0,2)}
+function aiTurn(){if(S.over)return;const p=S.turn,P=S.players[p];
+ if(P.atp>=6&&P.tr.size<3&&Math.random()<.6){const off=mutate(p);if(off){const pref=['res','fast','tox','mot','bio'];let ch=off.sort((a,b)=>pref.indexOf(a)-pref.indexOf(b))[0];P.tr.add(ch);log(`${P.name} mutated: ${TR[ch].n}`)}}
+ for(let g=0;g<60;g++){let best=null,bs=-1e9;
+  for(let i=0;i<N*N;i++){let cost=null,s=0;if(reach(p,i))cost=1;else{const c=invCost(p,i);if(c!=null){cost=c;s+=1.5+(count(S.grid[i])<4?3:0)}}
+   if(cost==null||cost>P.atp)continue;if(S.nut[i])s+=3;s+=nb(i).filter(j=>S.grid[j]===p).length*.4;if(warn()&&inBand(i)&&!P.tr.has('res'))s-=2.5;
+   s=s/cost+Math.random()*.3;if(s>bs){bs=s;best=i}}
+  if(best==null)break;act(p,best)}
+ if(S.players.filter(p=>p.alive).length<=1||!S.players[0].alive){end();return}
+ render();T(nextTurn,350)}
+function render(){const my=S.turn===0&&!S.over&&!S.offer,w=warn();
+ const cells=S.grid.map((o,i)=>{const ic=my?invCost(0,i):null,can=my&&(reach(0,i)||ic!=null);
+  const bg=o>=0?S.players[o].col:'#efebe2',stripe=w&&inBand(i)?'background-image:repeating-linear-gradient(45deg,#0000 0 5px,#d69e2e99 5px 9px);':'';
+  return `<div class="cell" data-a="cell" data-i="${i}" title="${can?(ic!=null?'Invade: '+ic+' ATP':'Grow: 1 ATP'):''}" style="width:34px;height:34px;background:${bg};${stripe}border-radius:5px;cursor:${can?'pointer':'default'};outline:${can?'2px solid #2b6cb088':'none'};color:${o>=0?'#fff':'#b7791f'}">${S.nut[i]?'●':''}</div>`}).join('');
+ const P0=S.players[0];
+ root.innerHTML=`<div class="layout"><div class="panel"><div style="display:grid;grid-template-columns:repeat(${N},34px);gap:3px;width:max-content;max-width:100%;overflow:auto">${cells}</div></div>
+ <div class="panel"><div class="big">Round ${Math.min(S.round,20)}/20</div><div class="mut">Next antibiotic wave: round ${S.bandRound}${w?' — <b style="color:#b7791f">INCOMING (striped band)</b>':''}</div>
+ ${S.players.map((P,i)=>`<div style="margin-top:6px;${S.turn===i&&!S.over?'font-weight:700':''}"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${P.col}"></span> ${P.name}${P.alive?'':' ☠'} — ${count(i)} cells, ${P.atp} ATP (+${income(i)}/turn)<br>${[...P.tr].map(k=>`<span class="chip" title="${TR[k].d}">${TR[k].n}</span>`).join('')}</div>`).join('')}
+ <div class="bar" style="margin-top:10px">${S.over?`<button class="btn primary" data-a="again">New game</button>`:S.offer?`Pick a mutation: ${S.offer.map(k=>`<button class="btn" data-a="pick" data-v="${k}" title="${TR[k].d}">${TR[k].n}</button>`).join('')}<div class="mut" style="font-size:.8rem">${S.offer.map(k=>TR[k].n+': '+TR[k].d).join('<br>')}</div>`:S.turn===0?`<button class="btn" data-a="mut" ${P0.atp<4||P0.tr.size>=5?'disabled':''}>Mutate (4 ATP)</button><button class="btn primary" data-a="end">End turn</button>`:'<span class="mut">AI thinking…</span>'}</div>
+ <div class="log">${S.log.map(l=>`<div>${l}</div>`).join('')}</div></div></div>`}
+root.onclick=e=>{const t=e.target.closest('[data-a]');if(!t)return;const a=t.dataset.a;
+ if(a==='n'){nAI=+t.dataset.v;setup();return}if(a==='start'){start();return}if(a==='again'){setup();return}
+ if(!S||S.over||S.turn!==0)return;
+ if(a==='cell'&&!S.offer){if(act(0,+t.dataset.i)){if(S.players.filter(p=>p.alive).length<=1)end();else render()}}
+ else if(a==='mut'){S.offer=mutate(0);render()}
+ else if(a==='pick'&&S.offer){S.players[0].tr.add(t.dataset.v);log(`You mutated: ${TR[t.dataset.v].n}`);S.offer=null;render()}
+ else if(a==='end'&&!S.offer)nextTurn()};
+setup();return()=>{dead=true}}});
+
+DEMOS.push({id:'chess',name:'Operon Chess',genre:'Abstract strategy',players:'1v1 hot-seat / vs AI',
+pitch:'Chess-like duel. Park repressors on enemy operons to shut them down; free yours with inducers.',
+how:`Each side has 3 <b>operon</b> squares on its back row (striped). After every move you make, each of your operons <i>not</i> covered by an enemy Repressor scores 1 point; your Polymerase standing on one of your operons scores +2 more. <b>First to 25 points, or capture the enemy Polymerase, wins.</b><br>
+<b>Pol</b> (RNA polymerase): 1 step any direction. <b>Rep</b> (repressor): up to 2 straight. <b>Ind</b> (inducer): knight jump, can only capture Repressors. <b>Pro</b> (protease): up to 2 diagonal. Click a piece, then a highlighted square.`,
+bio:`Repressor bound to the operator blocks transcription; inducer (e.g. allolactose) binds the repressor and pulls it off; RNA polymerase on its promoter = active transcription; protease degrades proteins.`,
+mount(root){
+const GOAL=25,OP=[[43,45,47],[1,3,5]],VAL={P:0,R:3,I:2,X:3},NM={P:'Pol',R:'Rep',I:'Ind',X:'Pro'};
+const D8=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]],KN=[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]];
+let st,sel=null,mode='vs AI',dead=false;const T=(f,ms)=>setTimeout(()=>{if(!dead)f()},ms);
+function init(){const b=Array(49).fill(null);const put=(r,c,t,s)=>b[r*7+c]={t,s};
+ for(const[s,back,front]of[[0,6,5],[1,0,1]]){put(back,0,'X',s);put(back,3,'P',s);put(back,6,'X',s);[1,3,5].forEach(c=>put(front,c,'R',s));[2,4].forEach(c=>put(front,c,'I',s))}
+ st={b,sc:[0,0],turn:0,win:null,last:null};sel=null;render()}
+function moves(b,s){const out=[];for(let i=0;i<49;i++){const p=b[i];if(!p||p.s!==s)continue;const r=i/7|0,c=i%7;
+ const add=(rr,cc)=>{if(rr<0||cc<0||rr>6||cc>6)return false;const j=rr*7+cc,q=b[j];if(!q){out.push([i,j]);return true}if(q.s!==s&&(p.t!=='I'||q.t==='R'))out.push([i,j]);return false};
+ if(p.t==='P')for(const[a,d]of D8)add(r+a,c+d);else if(p.t==='I')for(const[a,d]of KN)add(r+a,c+d);
+ else for(const[a,d]of(p.t==='R'?D8.slice(0,4):D8.slice(4)))for(let k=1;k<=2;k++)if(!add(r+a*k,c+d*k))break}return out}
+function score(b,s){let v=0;for(const o of OP[s]){const q=b[o];if(q&&q.s!==s&&q.t==='R')continue;v++;if(q&&q.s===s&&q.t==='P')v+=2}return v}
+function apply(st,[a,t]){const b=st.b.slice(),cap=b[t],s=st.turn;b[t]=b[a];b[a]=null;const sc=st.sc.slice();let win=null;if(cap&&cap.t==='P')win=s;sc[s]+=score(b,s);if(win==null&&sc[s]>=GOAL)win=s;return{b,sc,turn:1-s,win,last:[a,t]}}
+function ev(x,me){if(x.win!=null)return x.win===me?1000:-1000;let v=(x.sc[me]-x.sc[1-me])*4+(score(x.b,me)-score(x.b,1-me))*3;
+ for(const q of x.b)if(q)v+=(q.s===me?1:-1)*VAL[q.t];return v}
+function nega(x,d,a,bt){if(x.win!=null||d===0)return ev(x,x.turn);const ms=moves(x.b,x.turn);if(!ms.length)return -500;let best=-1e9;
+ for(const m of ms){const v=-nega(apply(x,m),d-1,-bt,-a);if(v>best)best=v;if(v>a)a=v;if(a>=bt)break}return best}
+function aiMove(){if(st.win!=null||st.turn!==1||mode!=='vs AI')return;const ms=shuf(moves(st.b,1));let best=null,bv=-1e9;
+ for(const m of ms){const v=-nega(apply(st,m),2,-1e9,1e9)+Math.random()*.5;if(v>bv){bv=v;best=m}}
+ if(best)st=apply(st,best);render()}
+function render(){const tg=sel!=null?moves(st.b,st.turn).filter(m=>m[0]===sel).map(m=>m[1]):[];
+ let cells='';for(let i=0;i<49;i++){const r=i/7|0,c=i%7,q=st.b[i],op=OP[0].includes(i)?0:OP[1].includes(i)?1:-1;
+  const base=(r+c)%2?'#e9e4d8':'#f7f3ea',stripe=op>=0?`background-image:repeating-linear-gradient(45deg,#0000 0 6px,${COLORS[op]}33 6px 10px);`:'';
+  const lastm=st.last&&st.last.includes(i)?'box-shadow:inset 0 0 0 3px #d69e2e;':'';
+  const hl=tg.includes(i)?'box-shadow:inset 0 0 0 4px #2f855a;cursor:pointer;':sel===i?'box-shadow:inset 0 0 0 4px #2b6cb0;':'';
+  cells+=`<div class="cell" data-a="sq" data-i="${i}" style="width:58px;height:58px;background:${base};${stripe}${lastm}${hl}">${q?`<div style="width:46px;height:46px;border-radius:50%;background:${COLORS[q.s]};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;${q.t==='P'?'border:3px solid #ffd54a':''}">${NM[q.t]}</div>`:''}</div>`}
+ const nm=s=>s===0?'Blue':'Red';
+ root.innerHTML=`<div class="layout"><div class="panel"><div style="display:grid;grid-template-columns:repeat(7,58px);width:max-content;border-radius:8px;overflow:hidden">${cells}</div></div>
+ <div class="panel"><div class="bar">${opts('mode',['vs AI','2 players'],mode)}<button class="btn" data-a="new">Restart</button></div>
+ <div class="big" style="color:${COLORS[0]}">Blue: ${st.sc[0]} / ${GOAL} <span class="mut" style="font-size:.85rem">(+${score(st.b,0)}/move)</span></div>
+ <div class="big" style="color:${COLORS[1]}">Red: ${st.sc[1]} / ${GOAL} <span class="mut" style="font-size:.85rem">(+${score(st.b,1)}/move)</span></div>
+ ${st.win!=null?`<div class="over">🏁 ${nm(st.win)} wins!</div>`:`<p>${nm(st.turn)} to move${mode==='vs AI'&&st.turn===1?' (AI thinking…)':''}</p>`}
+ <p class="mut" style="font-size:.85rem">You are Blue (bottom). Gold ring = Polymerase. Striped = operons.</p></div></div>`;
+ if(mode==='vs AI'&&st.turn===1&&st.win==null)T(aiMove,250)}
+root.onclick=e=>{const t=e.target.closest('[data-a]');if(!t)return;const a=t.dataset.a;
+ if(a==='mode'){mode=t.dataset.v;init();return}if(a==='new'){init();return}
+ if(a!=='sq'||st.win!=null||(mode==='vs AI'&&st.turn===1))return;const i=+t.dataset.i,q=st.b[i];
+ if(sel!=null){const m=moves(st.b,st.turn).find(m=>m[0]===sel&&m[1]===i);if(m){st=apply(st,m);sel=null;render();return}}
+ sel=q&&q.s===st.turn?i:null;render()};
+init();return()=>{dead=true}}});
+
+DEMOS.push({id:'duel',name:'Gene Duel',genre:'PTCG-style card battle',players:'You vs AI',
+pitch:'Pokémon-TCG-lite. Genes "evolve" DNA → mRNA → Protein, then fight. 3 KOs wins.',
+how:`Each turn: draw 1, then do any of — play a <b>gene</b> (goes to Active, or Bench max 3); play <b>RNA Pol</b> on a DNA card (→ mRNA) or <b>Ribosome</b> on an mRNA (→ Protein) (not on a card placed or evolved this turn); play items; <b>attach 1 ATP</b> per turn (click one of your cards with nothing selected); <b>retreat</b> (1 ATP); then <b>attack</b> with your Active (ends turn). Damage stays when a card evolves. Knock out 3 enemy cards to win. First player can't attack on turn 1.`,
+bio:`Central dogma as evolution stages: DNA → (transcription by RNA polymerase) → mRNA → (translation by ribosome) → protein. RNase degrades mRNA (devolves it). ClpXP is a bacterial protease; ssrA tagging marks proteins for degradation (works like poison). DnaK is bacterial Hsp70 (a chaperone).`,
+mount(root){
+const G=[{id:'lacZ',p:'β-galactosidase',hp:80,atk:{n:'Cleave lactose',c:1,d:20,fx:'draw',t:'+ draw 1'}},
+ {id:'lacI',p:'LacI repressor',hp:90,atk:{n:'Bind operator',c:2,d:20,fx:'stun',t:'+ target can’t attack next turn'}},
+ {id:'bla',p:'β-lactamase',hp:110,atk:{n:'Hydrolyze',c:3,d:60}},
+ {id:'dnaK',p:'DnaK (Hsp70)',hp:90,atk:{n:'Refold',c:1,d:10,fx:'heal',t:'+ heal self 30'}},
+ {id:'ctxAB',p:'Cholera toxin',hp:70,atk:{n:'ADP-ribosylate',c:2,d:50}},
+ {id:'cea',p:'Colicin E1',hp:70,atk:{n:'Pore',c:2,d:30,fx:'bench',t:'+ 10 to each enemy bench'}}];
+const IT={rnap:{n:'RNA Pol',t:'DNA → mRNA (your card)'},ribo:{n:'Ribosome',t:'mRNA → Protein (your card)'},clp:{n:'ClpXP protease',t:'30 damage to any enemy card'},rnase:{n:'RNase',t:'Enemy mRNA → back to DNA'},ssra:{n:'ssrA tag',t:'Enemy Active takes 10 at the start of each of its turns'},chap:{n:'Chaperone',t:'Heal 40 from your card'}};
+let S,dead=false,uid=0;const T=(f,ms)=>setTimeout(()=>{if(!dead)f()},ms);
+const maxHp=u=>[40,60,u.g.hp][u.st],atkOf=u=>u.st===0?null:u.st===1?{n:'Leaky expression',c:1,d:10}:u.g.atk;
+const uname=u=>u.st===0?`${u.g.id} gene`:u.st===1?`${u.g.id} mRNA`:u.g.p;
+function deck(){const d=[];G.forEach(g=>d.push({k:'gene',g}));d.push({k:'gene',g:pick(G)},{k:'gene',g:pick(G)});
+ const add=(k,n)=>{for(let i=0;i<n;i++)d.push({k})};add('rnap',5);add('ribo',5);add('clp',2);add('rnase',2);add('ssra',1);add('chap',1);d.forEach(c=>c.id=uid++);return shuf(d)}
+function mkP(name){let d,h;do{d=deck();h=d.splice(0,5)}while(!h.some(c=>c.k==='gene'));const P={name,deck:d,hand:h,act:null,bench:[],prizes:0};
+ const gi=P.hand.findIndex(c=>c.k==='gene');P.act=unit(P.hand.splice(gi,1)[0].g,0);return P}
+const unit=(g,turn)=>({id:uid++,g,st:0,dmg:0,atp:0,placed:turn,evo:-1,tag:false,stun:false});
+const log=s=>{S.log.unshift(s);S.log.length=Math.min(S.log.length,12)};
+function start(){S={P:[mkP('You'),mkP('AI')],cur:0,turn:1,attached:false,retreated:false,sel:null,mode:null,log:[],win:null};startTurn()}
+const opp=p=>1-p,units=P=>[P.act,...P.bench].filter(Boolean);
+function draw(p){const P=S.P[p];if(!P.deck.length){S.win=opp(p);log(`${P.name} ran out of cards.`);return}P.hand.push(P.deck.shift())}
+function startTurn(){const p=S.cur,P=S.P[p];S.attached=false;S.retreated=false;S.sel=null;S.mode=null;draw(p);if(S.win!=null)return render();
+ for(const u of units(P))if(u.tag){u.dmg+=10;log(`ssrA tag: ${uname(u)} takes 10.`)}checkKO();render();if(p===1&&S.win==null)T(ai,600)}
+function checkKO(){for(const p of[0,1]){const P=S.P[p];for(const u of units(P))if(u.dmg>=maxHp(u)){
+  if(P.act===u)P.act=null;else P.bench=P.bench.filter(x=>x!==u);S.P[opp(p)].prizes++;log(`💥 ${uname(u)} (${P.name}) knocked out!`);
+  if(S.P[opp(p)].prizes>=3&&S.win==null){S.win=opp(p)}}
+ if(!P.act&&P.bench.length){P.bench.sort((a,b)=>b.st-a.st||(maxHp(b)-b.dmg)-(maxHp(a)-a.dmg));P.act=P.bench.shift();log(`${P.name} promotes ${uname(P.act)}.`)}
+ if(!P.act&&S.win==null){S.win=opp(p);log(`${P.name} has no cards in play.`)}}}
+function canEvolve(c,u){return u&&((c.k==='rnap'&&u.st===0)||(c.k==='ribo'&&u.st===1))&&u.placed<S.turn&&u.evo<S.turn}
+function targets(p,c){const me=units(S.P[p]),en=units(S.P[opp(p)]);
+ if(c.k==='rnap'||c.k==='ribo')return me.filter(u=>canEvolve(c,u));if(c.k==='chap')return me.filter(u=>u.dmg>0);
+ if(c.k==='clp')return en;if(c.k==='rnase')return en.filter(u=>u.st===1);if(c.k==='ssra')return S.P[opp(p)].act&&!S.P[opp(p)].act.tag?[S.P[opp(p)].act]:[];return[]}
+function play(p,hi,u){const P=S.P[p],c=P.hand[hi];
+ if(c.k==='gene'){if(P.act&&P.bench.length>=3)return false;const nu=unit(c.g,S.turn);if(!P.act)P.act=nu;else P.bench.push(nu);log(`${P.name} plays ${c.g.id} gene.`)}
+ else{if(!targets(p,c).includes(u))return false;
+  if(c.k==='rnap'||c.k==='ribo'){u.st++;u.evo=S.turn;u.tag=false;u.stun=false;log(`${P.name}: ${c.k==='rnap'?'transcribed':'translated'} → ${uname(u)}.`)}
+  else if(c.k==='chap'){u.dmg=Math.max(0,u.dmg-40);log(`${P.name} refolds ${uname(u)} (+40).`)}
+  else if(c.k==='clp'){u.dmg+=30;log(`${P.name}: ClpXP hits ${uname(u)} for 30.`)}
+  else if(c.k==='rnase'){u.st=0;log(`${P.name}: RNase degrades ${u.g.id} mRNA back to DNA.`)}
+  else if(c.k==='ssra'){u.tag=true;log(`${P.name} tags ${uname(u)} with ssrA.`)}}
+ P.hand.splice(hi,1);checkKO();return true}
+function canAttack(p){const u=S.P[p].act,a=u&&atkOf(u);return a&&u.atp>=a.c&&!u.stun&&!(S.turn===1)}
+function attack(p){const P=S.P[p],E=S.P[opp(p)],u=P.act,a=atkOf(u);if(!canAttack(p))return;
+ E.act.dmg+=a.d;log(`⚔ ${uname(u)} uses ${a.n}: ${a.d} damage.`);
+ if(a.fx==='draw')draw(p);if(a.fx==='stun')E.act.stun=true;if(a.fx==='heal')u.dmg=Math.max(0,u.dmg-30);if(a.fx==='bench')E.bench.forEach(b=>b.dmg+=10);
+ checkKO();endTurn()}
+function attach(p,u){if(S.attached)return false;u.atp++;S.attached=true;return true}
+function retreat(p,bi){const P=S.P[p];if(S.retreated||P.act.atp<1||!P.bench[bi])return false;P.act.atp--;const o=P.act;P.act=P.bench[bi];P.bench[bi]=o;S.retreated=true;log(`${P.name} retreats to ${uname(P.act)}.`);return true}
+function endTurn(){if(S.win!=null)return render();for(const u of units(S.P[S.cur]))u.stun=false;S.cur=opp(S.cur);S.turn++;startTurn()}
+function ai(){if(S.win!=null||S.cur!==1)return;const p=1,P=S.P[1];
+ for(let g=0;g<20&&S.win==null;g++){let done=false;
+  for(let i=0;i<P.hand.length&&!done;i++){const c=P.hand[i];
+   if(c.k==='gene'){if(!P.act||P.bench.length<3){play(p,i);done=true}continue}
+   const tg=targets(p,c);if(!tg.length)continue;let u;
+   if(c.k==='clp')u=tg.find(x=>x.dmg+30>=maxHp(x))||S.P[0].act;else if(c.k==='chap'){u=tg.find(x=>x.dmg>=40);if(!u)continue}
+   else if(c.k==='rnase')u=tg.includes(S.P[0].act)?S.P[0].act:tg[0];else u=tg.includes(P.act)?P.act:tg[0];
+   play(p,i,u);done=true}
+  if(!done)break}
+ if(S.win!=null)return render();
+ if(P.act.st===0&&P.act.atp>=1&&!S.retreated){const bi=P.bench.findIndex(b=>b.st>0);if(bi>=0)retreat(p,bi)}
+ const need=atkOf(P.act);if(need&&P.act.atp<need.c)attach(p,P.act);else{const b=[...P.bench].sort((a,b)=>b.st-a.st)[0];attach(p,b||P.act)}
+ if(canAttack(p))attack(p);else endTurn()}
+function uCard(u,side,isAct){const a=atkOf(u),hp=maxHp(u)-u.dmg,sel=S.sel!=null&&side===S.selSide&&S.selTargets.includes(u);
+ const cls=`gc ${sel?'sel':''}`;return `<div class="${cls}" data-a="u" data-s="${side}" data-id="${u.id}" style="${isAct?'width:150px;border-color:'+COLORS[side]:''}">
+ <span class="k">${['DNA','mRNA','Protein'][u.st]}${isAct?' · ACTIVE':''}</span><b>${uname(u)}</b>
+ <div style="height:6px;background:#eee;border-radius:3px;margin:3px 0"><div style="height:6px;width:${100*hp/maxHp(u)}%;background:${hp/maxHp(u)>.4?'#2f855a':'#c53030'};border-radius:3px"></div></div>
+ HP ${hp}/${maxHp(u)} · ATP ${'⚡'.repeat(u.atp)||'0'}<br>${a?`<i>${a.n}</i> (${a.c}⚡) ${a.d}${a.t?' '+a.t:''}`:'<i>no attack</i>'}
+ ${u.tag?'<br><span class="chip">ssrA-tagged</span>':''}${u.stun?'<br><span class="chip">repressed: no attack</span>':''}</div>`}
+function render(){const me=S.P[0],en=S.P[1],my=S.cur===0&&S.win==null;
+ const handH=me.hand.map((c,i)=>{const t=c.k==='gene'?`gene → ${c.g.p}`:IT[c.k].t;return `<div class="gc ${S.sel===i?'sel':''} ${my?'':'dis'}" data-a="h" data-i="${i}"><span class="k">${c.k==='gene'?'Gene':'Item'}</span><b>${c.k==='gene'?c.g.id:IT[c.k].n}</b><span>${t}</span></div>`}).join('');
+ const row=(P,s)=>`<div>${P.act?uCard(P.act,s,true):''}${P.bench.map(b=>uCard(b,s,false)).join('')}</div>`;
+ const a=me.act&&atkOf(me.act);
+ root.innerHTML=`<div class="layout"><div>
+ <div class="panel"><b style="color:${COLORS[1]}">AI</b> — KOs: ${en.prizes}/3 · hand ${en.hand.length} · deck ${en.deck.length}${row(en,1)}</div>
+ <div class="panel" style="margin-top:8px"><b style="color:${COLORS[0]}">You</b> — KOs: ${me.prizes}/3 · deck ${me.deck.length}${row(me,0)}</div>
+ <div class="panel" style="margin-top:8px"><b>Hand</b>${S.sel!=null?' <span class="mut">— now click a highlighted target (or the card again to cancel)</span>':''}${S.mode==='retreat'?' <span class="mut">— click a bench card to swap in</span>':''}<div>${handH}</div></div></div>
+ <div class="panel">${S.win!=null?`<div class="over">🏁 ${S.P[S.win].name} win${S.win===0?'':'s'}!</div><button class="btn primary" data-a="new">New game</button>`:
+ my?`<div class="big">Your turn (${S.turn})</div><div class="mut">ATP attach: ${S.attached?'used':'available — click one of your cards'}</div>
+ <div class="bar"><button class="btn primary" data-a="atk" ${canAttack(0)?'':'disabled'}>Attack${a?`: ${a.n} (${a.c}⚡, ${a.d})`:''}</button>
+ <button class="btn" data-a="ret" ${!S.retreated&&me.act&&me.act.atp>=1&&me.bench.length?'':'disabled'}>Retreat (1⚡)</button><button class="btn" data-a="end">End turn</button></div>
+ ${S.turn===1?'<div class="mut">First turn: no attacking.</div>':''}`:'<div class="mut">AI turn…</div>'}
+ <div class="log">${S.log.map(l=>`<div>${l}</div>`).join('')}</div></div></div>`}
+root.onclick=e=>{const t=e.target.closest('[data-a]');if(!t)return;const a=t.dataset.a;if(a==='new'){start();return}
+ if(S.win!=null||S.cur!==0)return;const P=S.P[0];
+ if(a==='h'){const i=+t.dataset.i,c=P.hand[i];S.mode=null;if(S.sel===i){S.sel=null;return render()}
+  if(c.k==='gene'){play(0,i);S.sel=null;return render()}
+  const tg=targets(0,c);if(!tg.length){log(`No valid target for ${IT[c.k].n}.`);return render()}
+  S.sel=i;S.selTargets=tg;S.selSide=['clp','rnase','ssra'].includes(c.k)?1:0;return render()}
+ if(a==='u'){const s=+t.dataset.s,id=+t.dataset.id,u=units(S.P[s]).find(x=>x.id===id);
+  if(S.sel!=null){if(S.selTargets.includes(u)){play(0,S.sel,u);S.sel=null}return render()}
+  if(S.mode==='retreat'&&s===0){const bi=P.bench.indexOf(u);if(bi>=0)retreat(0,bi);S.mode=null;return render()}
+  if(s===0&&attach(0,u)){log(`You attach ATP to ${uname(u)}.`);render()}return}
+ if(a==='atk')attack(0);else if(a==='ret'){S.mode='retreat';S.sel=null;render()}else if(a==='end')endTurn()};
+start();return()=>{dead=true}}});
+
+DEMOS.push({id:'draft',name:'Quorum Draft',genre:'Simultaneous drafting (Sushi Go / 7 Wonders style)',players:'2–10 (you + AI)',
+pitch:'Everyone picks a card at the same time and passes the hand left. No waiting, scales to 10.',
+how:`3 rounds. Each round you get 7 cards: pick 1, pass the rest left, repeat until hands are empty. Scoring each round:<br>
+• <b>lacZ / lacY / lacA</b>: 2 each, but only if the operon is <b>induced</b> (you have ≥1 Lactose AND fewer than 2 Glucose). Full Z+Y+A set: +5.<br>
+• <b>Glucose</b>: +1 each — but 2+ Glucose shuts your lac genes off (catabolite repression).<br>
+• <b>Gene duplication</b>: the next lac gene you take scores double.<br>
+• <b>Antibiotic</b>: each neighbor (left/right) without Resistance loses 3. <b>Resistance</b>: immune, scores 0.<br>
+• <b>Phage</b>: each neighbor without CRISPR loses 2, you +1 per hit. <b>CRISPR</b>: immune, +2 per phage it blocks.<br>
+• <b>Autoinducer</b>: each scores +1 per <i>other</i> player who also took an Autoinducer this round (max 4) — quorum sensing.<br>
+• <b>Spore</b>: kept all game. At the end, most spores +6, fewest −6.`,
+bio:`lac operon logic: induced by allolactose (lactose), repressed by high glucose via low cAMP–CAP (catabolite repression). Gene duplication. Antibiotic resistance and CRISPR as defenses. Quorum sensing pays off only when others signal too. Spores = long-term survival.`,
+mount(root){
+const C={lac:{n:'Lactose',c:'#b7791f'},Z:{n:'lacZ',c:'#2b6cb0'},Y:{n:'lacY',c:'#2b6cb0'},A:{n:'lacA',c:'#2b6cb0'},glu:{n:'Glucose',c:'#975a16'},dup:{n:'Gene duplication',c:'#6b46c1'},abx:{n:'Antibiotic',c:'#c53030'},res:{n:'Resistance',c:'#2f855a'},phg:{n:'Phage',c:'#c53030'},cr:{n:'CRISPR',c:'#2f855a'},ai:{n:'Autoinducer',c:'#319795'},sp:{n:'Spore',c:'#4a5568'}};
+const W={lac:8,Z:7,Y:7,A:6,glu:8,dup:4,abx:5,res:5,phg:4,cr:4,ai:7,sp:5},BAG=Object.entries(W).flatMap(([k,w])=>Array(w).fill(k));
+let S=null,n=5,dead=false;
+const nbrs=i=>[...new Set([(i+n-1)%n,(i+1)%n])].filter(j=>j!==i);
+function roundScores(tabs){const N=tabs.length,cnt=tabs.map(t=>{const o={};for(const c of t)o[c.k]=(o[c.k]||0)+1;return o}),sc=Array(N).fill(0),br=tabs.map(()=>[]);
+ const nb=i=>[...new Set([(i+N-1)%N,(i+1)%N])].filter(j=>j!==i);
+ for(let i=0;i<N;i++){const c=cnt[i],t=tabs[i],ind=(c.lac||0)>=1&&(c.glu||0)<2;
+  if(ind){let v=0;for(const x of t)if('ZYA'.includes(x.k))v+=x.dbl?4:2;const sets=Math.min(c.Z||0,c.Y||0,c.A||0)*5;if(v+sets){sc[i]+=v+sets;br[i].push(`lac genes ${v+sets}`)}}
+  else if((c.Z||0)+(c.Y||0)+(c.A||0))br[i].push(`lac genes off (${(c.lac||0)?'glucose':'no inducer'})`);
+  if(c.glu){sc[i]+=c.glu;br[i].push(`glucose ${c.glu}`)}
+  if(c.ai){const o=cnt.filter((x,j)=>j!==i&&x.ai).length,v=c.ai*Math.min(4,o);sc[i]+=v;br[i].push(`quorum ${v}`)}}
+ for(let i=0;i<N;i++){const c=cnt[i];for(const j of nb(i)){
+  if(c.abx&&!cnt[j].res){sc[j]-=3*c.abx;br[j].push(`antibiotic −${3*c.abx}`)}
+  if(c.phg){if(cnt[j].cr){sc[j]+=2*c.phg;br[j].push(`CRISPR +${2*c.phg}`)}else{sc[j]-=2*c.phg;sc[i]+=c.phg;br[j].push(`phage −${2*c.phg}`);br[i].push(`phage +${c.phg}`)}}}}
+ return{sc,br}}
+function setup(){S=null;root.innerHTML=`<div class="panel">Players: <div class="bar">${opts('n',[2,3,4,5,6,7,8,9,10],n)}</div><button class="btn primary" data-a="start">Start</button></div>`}
+function start(){S={round:1,players:Array.from({length:n},(_,i)=>({name:i?`AI ${i}`:'You',tab:[],total:0,spores:0,dupPending:false,last:[]})),hands:[],log:[],over:false,summary:null};deal()}
+function deal(){S.hands=S.players.map(()=>Array.from({length:7},()=>({k:pick(BAG)})));S.players.forEach(p=>{p.tab=[];p.dupPending=false});render()}
+function take(i,hi){const P=S.players[i],c=S.hands[i].splice(hi,1)[0];if('ZYA'.includes(c.k)&&P.dupPending){c.dbl=true;P.dupPending=false}if(c.k==='dup')P.dupPending=true;if(c.k==='sp')P.spores++;P.tab.push(c);return c}
+function aiPick(i){const tabs=S.players.map(p=>p.tab),base=roundScores(tabs).sc,P=S.players[i],hand=S.hands[i];let best=0,bv=-1e9;
+ const has=k=>P.tab.some(c=>c.k===k),left=hand.length;
+ hand.forEach((c,hi)=>{const t2=tabs.slice();t2[i]=[...P.tab,{...c,dbl:'ZYA'.includes(c.k)&&P.dupPending}];const s=roundScores(t2).sc;let v=s[i]-base[i];
+  for(let j=0;j<n;j++)if(j!==i)v-=(s[j]-base[j])*.35;
+  if('ZYA'.includes(c.k)&&!has('lac')&&left>2)v+=1.3;if(c.k==='lac'&&!has('lac'))v+=1;if(c.k==='sp')v+=1.2;if(c.k==='dup'&&left>3)v+=1.5;if(c.k==='res'&&left>2)v+=.8;if(c.k==='cr')v+=.5;if(c.k==='ai'&&left>2)v+=.6;
+  v+=Math.random()*.9;if(v>bv){bv=v;best=hi}});return best}
+function pickCard(hi){const picks=S.players.map((p,i)=>i===0?hi:aiPick(i));S.players.forEach((p,i)=>{p.last=[take(i,picks[i])]});
+ S.hands=S.hands.map((_,i)=>S.hands[(i+n-1)%n]);
+ if(!S.hands[0].length)scoreRound();else render()}
+function scoreRound(){const{sc,br}=roundScores(S.players.map(p=>p.tab));S.players.forEach((p,i)=>p.total+=sc[i]);S.summary={round:S.round,sc,br};
+ if(S.round===3){const sp=S.players.map(p=>p.spores),mx=Math.max(...sp),mn=Math.min(...sp),wm=sp.filter(x=>x===mx).length,wn=sp.filter(x=>x===mn).length;
+  S.players.forEach((p,i)=>{if(sp[i]===mx){p.total+=Math.floor(6/wm);S.summary.br[i].push(`most spores +${Math.floor(6/wm)}`)}if(n>2&&mx!==mn&&sp[i]===mn){p.total-=Math.floor(6/wn);S.summary.br[i].push(`fewest spores −${Math.floor(6/wn)}`)}});S.over=true}
+ render()}
+const chip=c=>`<span class="chip" style="border-color:${C[c.k].c};color:${C[c.k].c}">${C[c.k].n}${c.dbl?' ×2':''}</span>`;
+function render(){if(S.summary){const m=S.summary,order=S.players.map((p,i)=>i).sort((a,b)=>S.players[b].total-S.players[a].total);
+  root.innerHTML=`<div class="panel"><div class="big">${S.over?'🏁 Final scores':`Round ${m.round} scored`}</div><table style="width:100%;border-collapse:collapse;margin-top:6px">${order.map(i=>`<tr style="border-top:1px solid #eee"><td style="padding:4px;font-weight:${i===0?700:400}">${S.players[i].name}</td><td>${m.sc[i]>=0?'+':''}${m.sc[i]}</td><td class="mut" style="font-size:.82rem">${m.br[i].join(' · ')||'—'}</td><td class="big">${S.players[i].total}</td></tr>`).join('')}</table>
+  <button class="btn primary" data-a="${S.over?'again':'next'}" style="margin-top:8px">${S.over?'New game':'Next round'}</button></div>`;return}
+ const me=S.players[0],cur=roundScores(S.players.map(p=>p.tab));
+ root.innerHTML=`<div class="layout"><div><div class="panel"><div class="big">Round ${S.round}/3 — pick a card</div><div>${S.hands[0].map((c,i)=>`<div class="gc" data-a="p" data-i="${i}" style="border-color:${C[c.k].c};min-height:80px"><b style="color:${C[c.k].c}">${C[c.k].n}</b></div>`).join('')}</div></div>
+ <div class="panel" style="margin-top:8px"><b>Your tableau</b> (would score ${cur.sc[0]} now; spores ${me.spores})${me.dupPending?' <span class="chip">next lac gene ×2</span>':''}<div>${me.tab.map(chip).join('')||'<span class="mut">empty</span>'}</div><div class="mut" style="font-size:.82rem">${cur.br[0].join(' · ')}</div></div></div>
+ <div class="panel"><b>Table</b> <span class="mut">(your neighbors: ${nbrs(0).map(j=>S.players[j].name).join(', ')})</span>${S.players.slice(1).map((p,k)=>`<div style="margin-top:6px"><b>${p.name}</b> · ${p.total} pts · ${p.spores} spores<br>${p.tab.map(chip).join('')}</div>`).join('')}</div></div>`}
+root.onclick=e=>{const t=e.target.closest('[data-a]');if(!t)return;const a=t.dataset.a;
+ if(a==='n'){n=+t.dataset.v;setup()}else if(a==='start')start();else if(a==='again')setup();
+ else if(a==='next'){S.summary=null;S.round++;deal()}else if(a==='p'&&S&&!S.summary)pickCard(+t.dataset.i)};
+setup();return()=>{dead=true}}});
+
+DEMOS.push({id:'codon',name:'Codon Race',genre:'Tile race (Ticket to Ride–style river)',players:'You vs 1–3 AI',
+pitch:'Race to build an mRNA that codes for your target protein. Steal tiles, mutate rivals.',
+how:`Each player has a target protein (Met … Stop). On your turn take <b>one</b> tile from the 5-tile river. A nucleotide goes into your current codon. When a codon has 3 bases it's checked against the <b>real genetic code</b>: if it codes for the next amino acid you need, it locks in; if not, it's a missense — the codon is wiped. You may instead <b>discard</b> a tile you take (click "Toss" then a tile) to deny it. A <b>☢ Mutagen</b> tile wipes a rival's unfinished codon. First to finish (including a Stop codon) wins. Synonymous codons (degeneracy) give you options — toggle hints to see them.`,
+bio:`Standard genetic code, reading frame of 3, start codon AUG = Met, three stop codons, degeneracy/wobble (many amino acids have several codons), point mutations causing missense.`,
+mount(root){
+const B='UCAG',AA='FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG';
+const N3={A:'Ala',R:'Arg',N:'Asn',D:'Asp',C:'Cys',Q:'Gln',E:'Glu',G:'Gly',H:'His',I:'Ile',L:'Leu',K:'Lys',M:'Met',F:'Phe',P:'Pro',S:'Ser',T:'Thr',W:'Trp',Y:'Tyr',V:'Val','*':'Stop'};
+const tr=c=>AA[B.indexOf(c[0])*16+B.indexOf(c[1])*4+B.indexOf(c[2])];
+const CODONS=[];for(const a of B)for(const b of B)for(const c of B)CODONS.push(a+b+c);
+const codonsFor=x=>CODONS.filter(c=>tr(c)===x);
+let S=null,nAI=1,hint=true,dead=false;const T=(f,ms)=>setTimeout(()=>{if(!dead)f()},ms);
+const tile=()=>Math.random()<.1?'☢':pick(['A','U','G','C']);
+const log=s=>{S.log.unshift(s);S.log.length=Math.min(S.log.length,10)};
+function setup(){S=null;root.innerHTML=`<div class="panel">Opponents: <div class="bar">${opts('n',[1,2,3],nAI)}</div><label><input type="checkbox" data-a="hint" ${hint?'checked':''}> show codon hints</label><br><button class="btn primary" data-a="start">Start</button></div>`}
+function start(){const pool='ARNDCQEGHILKFPSTWYV'.split('').filter(x=>x!=='M');
+ S={players:Array.from({length:nAI+1},(_,i)=>({name:i?`AI ${i}`:'You',target:['M',pick(pool),pick(pool),pick(pool),'*'],done:[],cur:''})),river:Array.from({length:5},tile),turn:0,toss:false,log:[],win:null};render()}
+const need=P=>P.target[P.done.length];
+const prefixOK=(P,s)=>codonsFor(need(P)).some(c=>c.startsWith(s));
+function place(p,ri){const P=S.players[p],t=S.river[ri];S.river[ri]=tile();
+ if(S.toss){S.toss=false;log(`${P.name} tossed ${t}.`);return}
+ if(t==='☢'){const tg=S.players.map((q,i)=>i).filter(i=>i!==p).sort((a,b)=>S.players[b].done.length*3+S.players[b].cur.length-(S.players[a].done.length*3+S.players[a].cur.length))[0];
+  const Q=S.players[tg];log(`☢ ${P.name} mutagenizes ${Q.name}${Q.cur?` — wiped "${Q.cur}"`:' (nothing to wipe)'}.`);Q.cur='';return}
+ P.cur+=t;if(P.cur.length===3){const a=tr(P.cur);if(a===need(P)){P.done.push(P.cur);log(`${P.name}: ${P.cur} → ${N3[a]} ✓`);if(P.done.length===P.target.length)S.win=p}else log(`${P.name}: ${P.cur} → ${N3[a]} ✗ missense, wiped`);P.cur=''}}
+function after(){if(S.win!=null)return render();S.turn=(S.turn+1)%S.players.length;render();if(S.turn!==0)T(ai,600)}
+function ai(){if(S.win!=null)return;const p=S.turn,P=S.players[p];let best=-1,bv=-1e9;
+ S.river.forEach((t,i)=>{let v;if(t==='☢'){const lead=Math.max(...S.players.filter((q,j)=>j!==p).map(q=>q.cur.length));v=lead>=2?3:-1}
+  else v=prefixOK(P,P.cur+t)?2+(P.cur.length):-5;v+=Math.random()*.5;if(v>bv){bv=v;best=i}});
+ if(bv<0){S.toss=true;best=R(5)}place(p,best);after()}
+function render(){const my=S.turn===0&&S.win==null;
+ const pl=S.players.map((P,i)=>{const nxt=need(P);return `<div class="panel" style="margin-top:8px;border-color:${S.turn===i&&S.win==null?COLORS[i]:'#d9d4c7'}"><b style="color:${COLORS[i]}">${P.name}</b>
+ <div style="margin-top:4px">${P.target.map((x,k)=>`<span class="chip" style="${k<P.done.length?'background:#c6f6d5':k===P.done.length?'border:2px solid '+COLORS[i]:''}">${N3[x]}${k<P.done.length?' '+P.done[k]:''}</span>`).join(' → ')}</div>
+ ${nxt?`<div>Building: <code style="font-size:1.1rem">${P.cur.padEnd(3,'_')}</code> for <b>${N3[nxt]}</b>${i===0&&hint?` <span class="mut" style="font-size:.82rem">valid: ${codonsFor(nxt).filter(c=>c.startsWith(P.cur)).join(' ')||'none — prefix is dead, toss or wait for mutagen'}</span>`:''}</div>`:''}</div>`}).join('');
+ root.innerHTML=`<div class="layout"><div><div class="panel"><b>River</b> ${S.toss?'<span class="mut">— click a tile to toss it</span>':''}<div class="bar">${S.river.map((t,i)=>`<button class="btn" data-a="r" data-i="${i}" ${my?'':'disabled'} style="font-size:1.4rem;width:56px;height:56px;${t==='☢'?'color:#c53030':''}">${t}</button>`).join('')}
+ <button class="btn ${S.toss?'on':''}" data-a="toss" ${my?'':'disabled'}>Toss</button></div></div>${pl}</div>
+ <div class="panel">${S.win!=null?`<div class="over">🏁 ${S.players[S.win].name} translated the whole protein!</div><button class="btn primary" data-a="again">New game</button>`:my?'<b>Your turn</b>':'<span class="mut">AI thinking…</span>'}<div class="log">${S.log.map(l=>`<div>${l}</div>`).join('')}</div></div></div>`}
+root.onclick=e=>{const t=e.target.closest('[data-a]');if(!t)return;const a=t.dataset.a;
+ if(a==='n'){nAI=+t.dataset.v;setup()}else if(a==='hint')hint=t.checked;else if(a==='start')start();else if(a==='again')setup();
+ else if(S&&S.win==null&&S.turn===0){if(a==='toss'){S.toss=!S.toss;render()}else if(a==='r'){place(0,+t.dataset.i);after()}}};
+setup();return()=>{dead=true}}});
+
+DEMOS.push({id:'lanes',name:'Lysis Lanes',genre:'Real-time lane battle (Clash Royale–style)',players:'You vs AI',
+pitch:'Real-time. Spend ATP to send units down the lane; break the enemy membrane first.',
+how:`ATP refills over time (max 10). Click a unit button (or press 1–4) to deploy it at your membrane (left). Units walk right, stop to fight enemies in range, and damage the enemy membrane when they reach it. Counters: <b>Phage</b> is fast and cheap; <b>Biofilm</b> soaks damage; <b>Protease</b> deals ×3 to Biofilm; <b>Colicin</b> shoots from range but is fragile. Membrane at 0 = lysis = you lose.`,
+bio:`Phage swarm the host fast; biofilm matrix shields cells; proteases break down the protein part of the matrix; colicins are bacteriocins that act at a distance. Cell lysis = membrane failure.`,
+mount(root){
+const U={phage:{n:'Phage',cost:2,hp:14,dmg:5,spd:70,rng:14,cd:.6},wall:{n:'Biofilm',cost:3,hp:90,dmg:2,spd:18,rng:14,cd:1},prot:{n:'Protease',cost:5,hp:40,dmg:9,spd:32,rng:16,cd:.8,vs:{wall:3}},col:{n:'Colicin',cost:4,hp:18,dmg:6,spd:26,rng:120,cd:1}};
+const K=Object.keys(U),W=820,H=200,Y=110;
+root.innerHTML=`<div class="panel"><canvas id="cv" width="${W}" height="${H}"></canvas><div class="bar" id="ub">${K.map((k,i)=>`<button class="btn" data-a="u" data-v="${k}">${i+1}. ${U[k].n} (${U[k].cost}⚡)</button>`).join('')}<button class="btn" data-a="re">Restart</button></div><div id="st" class="mut"></div></div>`;
+const cv=root.querySelector('#cv'),g=cv.getContext('2d'),st=root.querySelector('#st');
+let S,raf,last;
+function reset(){S={units:[],atp:[5,5],hp:[100,100],over:null,aiT:2,shots:[]}}
+function spawn(s,k){const d=U[k];if(S.over||S.atp[s]<d.cost)return;S.atp[s]-=d.cost;S.units.push({s,k,...d,hpNow:d.hp,x:s?W-40:40,t:0,y:Y+(R(30)-15)})}
+function step(dt){if(S.over)return;for(const s of[0,1])S.atp[s]=Math.min(10,S.atp[s]+dt*.9);
+ for(const u of S.units){u.t-=dt;const dir=u.s?-1:1;let tgt=null,best=1e9;
+  for(const v of S.units)if(v.s!==u.s&&v.hpNow>0){const d=(v.x-u.x)*dir;if(d>=-10&&d<=u.rng&&d<best){best=d;tgt=v}}
+  const base=u.s?40:W-40,atBase=(base-u.x)*dir<=u.rng;
+  if(tgt){if(u.t<=0){tgt.hpNow-=u.dmg*((u.vs&&u.vs[tgt.k])||1);u.t=u.cd;if(u.k==='col')S.shots.push({x:u.x,y:u.y,tx:tgt.x,ty:tgt.y,l:.15})}}
+  else if(atBase){if(u.t<=0){S.hp[1-u.s]-=u.dmg;u.t=u.cd}}else u.x+=dir*u.spd*dt}
+ S.units=S.units.filter(u=>u.hpNow>0);S.shots.forEach(s=>s.l-=dt);S.shots=S.shots.filter(s=>s.l>0);
+ S.aiT-=dt;if(S.aiT<=0){const mine=S.units.filter(u=>u.s===0),walls=mine.filter(u=>u.k==='wall').length;
+  let k=walls>=1&&S.atp[1]>=5?'prot':mine.length>3&&S.atp[1]>=4?'col':pick(['phage','phage','wall','col','prot']);
+  if(S.atp[1]>=U[k].cost+R(3)){spawn(1,k);S.aiT=.6+Math.random()}else S.aiT=.3}
+ if(S.hp[0]<=0)S.over='AI';else if(S.hp[1]<=0)S.over='You'}
+function draw(){g.clearRect(0,0,W,H);for(const s of[0,1]){const x=s?W-30:0;g.fillStyle=COLORS[s]+'33';g.fillRect(x,20,30,H-40);g.fillStyle=COLORS[s];g.fillRect(x,20,30,(H-40)*Math.max(0,S.hp[s])/100)}
+ g.strokeStyle='#ddd';g.beginPath();g.moveTo(40,Y);g.lineTo(W-40,Y);g.stroke();
+ for(const u of S.units){g.fillStyle=COLORS[u.s];g.beginPath();
+  if(u.k==='phage'){g.moveTo(u.x,u.y-9);g.lineTo(u.x+7,u.y);g.lineTo(u.x,u.y+9);g.lineTo(u.x-7,u.y);}else if(u.k==='wall')g.rect(u.x-10,u.y-16,20,32);else if(u.k==='prot')g.arc(u.x,u.y,10,0,7);else{g.rect(u.x-7,u.y-7,14,14)}g.fill();
+  g.fillStyle='#000';g.font='10px sans-serif';g.fillText(U[u.k].n[0],u.x-3,u.y+4);g.fillStyle='#2f855a';g.fillRect(u.x-10,u.y-22,20*u.hpNow/u.hp,3)}
+ g.strokeStyle='#c53030';for(const s of S.shots){g.beginPath();g.moveTo(s.x,s.y);g.lineTo(s.tx,s.ty);g.stroke()}
+ g.fillStyle='#1d2430';g.font='bold 14px sans-serif';g.fillText(`You ${Math.max(0,S.hp[0]|0)}`,40,15);g.fillText(`AI ${Math.max(0,S.hp[1]|0)}`,W-90,15);
+ g.fillStyle='#b7791f';g.fillRect(40,H-14,S.atp[0]*30,8);g.strokeStyle='#b7791f';g.strokeRect(40,H-14,300,8);
+ if(S.over){g.fillStyle='#1d2430cc';g.fillRect(0,0,W,H);g.fillStyle='#fff';g.font='bold 28px sans-serif';g.fillText(`${S.over} win${S.over==='You'?'':'s'}! (Restart to play again)`,180,H/2)}
+ st.textContent=`ATP ${S.atp[0].toFixed(1)}/10`}
+function loop(t){const dt=Math.min(.05,(t-(last||t))/1000);last=t;step(dt);draw();raf=requestAnimationFrame(loop)}
+root.onclick=e=>{const t=e.target.closest('[data-a]');if(!t)return;if(t.dataset.a==='u')spawn(0,t.dataset.v);else reset()};
+const kd=e=>{const i=+e.key-1;if(i>=0&&i<4)spawn(0,K[i])};addEventListener('keydown',kd);
+reset();raf=requestAnimationFrame(loop);return()=>{cancelAnimationFrame(raf);removeEventListener('keydown',kd)}}});
+
+DEMOS.push({id:'roulette',name:'Mutation Roulette',genre:'Push-your-luck',players:'You vs 1–5 AI',
+pitch:'Keep drawing mutations for fitness — but a second lethal allele busts your turn.',
+how:`On your turn, draw mutation cards one at a time. Beneficial adds fitness to your pot, harmful subtracts, neutral does nothing (most common!). The 1st <b>Lethal</b> is fine (you're a heterozygous carrier); a 2nd Lethal in the same turn = homozygous lethal → you <b>bust</b> and lose the pot. <b>DNA repair</b> cancels one Lethal. Click <b>Stop</b> to bank your pot. First to 15 fitness wins.`,
+bio:`Most mutations are neutral or harmful; beneficial ones are rare. Recessive lethals only kill when homozygous (two copies). DNA repair fixes damage before it is inherited.`,
+mount(root){
+const DECK=[...Array(16).fill({k:'neu',n:'Neutral',v:0}),...Array(8).fill({k:'harm',n:'Harmful −1',v:-1}),...Array(7).fill({k:'ben',n:'Beneficial +1',v:1}),...Array(5).fill({k:'ben',n:'Beneficial +2',v:2}),...Array(2).fill({k:'ben',n:'Beneficial +3',v:3}),...Array(4).fill({k:'leth',n:'Lethal',v:0}),{k:'rep',n:'DNA repair',v:0}];
+const COL={neu:'#667085',harm:'#c53030',ben:'#2f855a',leth:'#1d2430',rep:'#319795'},GOAL=15;
+let S=null,nAI=2,dead=false;const T=(f,ms)=>setTimeout(()=>{if(!dead)f()},ms);
+const log=s=>{S.log.unshift(s);S.log.length=Math.min(S.log.length,12)};
+function setup(){S=null;root.innerHTML=`<div class="panel">Opponents: <div class="bar">${opts('n',[1,2,3,4,5],nAI)}</div><button class="btn primary" data-a="start">Start</button></div>`}
+function start(){S={players:Array.from({length:nAI+1},(_,i)=>({name:i?`AI ${i}`:'You',fit:0})),turn:0,deck:shuf([...DECK]),drawn:[],pot:0,leth:0,rep:0,log:[],win:null};render()}
+function drawOne(){if(!S.deck.length)S.deck=shuf([...DECK]);const c=S.deck.pop();S.drawn.push(c);S.pot+=c.v;
+ if(c.k==='rep')S.rep++;if(c.k==='leth'){if(S.rep){S.rep--;log(`${S.players[S.turn].name}: DNA repair saves a lethal.`)}else S.leth++}
+ if(S.leth>=2){log(`💀 ${S.players[S.turn].name} busts (homozygous lethal), loses pot ${S.pot}.`);S.pot=0;return endTurn(true)}render()}
+function stop(){const P=S.players[S.turn];P.fit+=S.pot;log(`${P.name} banks ${S.pot>=0?'+':''}${S.pot} → ${P.fit}`);if(P.fit>=GOAL){S.win=S.turn;return render()}endTurn()}
+function endTurn(){S.turn=(S.turn+1)%S.players.length;S.drawn=[];S.pot=0;S.leth=0;S.rep=0;render();if(S.turn!==0)T(ai,500)}
+function ai(){if(S.win!=null||S.turn===0)return;const P=S.players[S.turn],lead=Math.max(...S.players.map(p=>p.fit));
+ const want=P.fit+S.pot>=GOAL?0:lead-P.fit>6?7:4;const go=S.drawn.length<8&&(S.leth===0?S.pot<want+2:S.pot<want-1);
+ if(go){const t=S.turn;drawOne();if(S.turn===t&&S.win==null)T(ai,450)}else stop()}
+function render(){const my=S.turn===0&&S.win==null,P=S.players[S.turn];
+ root.innerHTML=`<div class="layout"><div class="panel"><div class="big">${S.turn===0?'Your':P.name+"'s"} turn — pot ${S.pot>=0?'+':''}${S.pot} · lethals ${S.leth}/2 ${S.rep?'· repair ready':''}</div>
+ <div style="margin:8px 0">${S.drawn.map(c=>`<div class="gc" style="min-height:70px;width:92px;border-color:${COL[c.k]};cursor:default"><b style="color:${COL[c.k]}">${c.n}</b></div>`).join('')||'<span class="mut">no cards yet</span>'}</div>
+ ${S.win!=null?`<div class="over">🏁 ${S.players[S.win].name} reached ${GOAL} fitness!</div><button class="btn primary" data-a="again">New game</button>`:my?`<button class="btn primary" data-a="draw">Draw mutation</button><button class="btn" data-a="stop">Stop & bank</button>`:'<span class="mut">AI deciding…</span>'}
+ <div class="mut" style="font-size:.82rem;margin-top:6px">Deck: ${S.deck.length} left. Full deck = 16 neutral, 8 harmful, 14 beneficial, 4 lethal, 1 repair.</div></div>
+ <div class="panel">${S.players.map((p,i)=>`<div style="${i===S.turn?'font-weight:700':''}">${p.name}: ${p.fit}/${GOAL}<div style="height:6px;background:#eee;border-radius:3px"><div style="height:6px;width:${Math.max(0,Math.min(100,100*p.fit/GOAL))}%;background:${COLORS[i]};border-radius:3px"></div></div></div>`).join('')}<div class="log">${S.log.map(l=>`<div>${l}</div>`).join('')}</div></div></div>`}
+root.onclick=e=>{const t=e.target.closest('[data-a]');if(!t)return;const a=t.dataset.a;
+ if(a==='n'){nAI=+t.dataset.v;setup()}else if(a==='start')start();else if(a==='again')setup();
+ else if(S&&S.win==null&&S.turn===0){if(a==='draw')drawOne();else if(a==='stop')stop()}};
+setup();return()=>{dead=true}}});
+
+DEMOS.push({id:'reversi',name:'Conjugation Reversi',genre:'Abstract (Othello variant)',players:'1v1 hot-seat / vs AI',
+pitch:'Othello where flipping = plasmid transfer. Biofilm squares can never be flipped.',
+how:`Standard Othello: place a cell so that it sandwiches a straight line of enemy cells between it and one of your cells — every sandwiched cell converts to your color. You must convert at least one. If you have no legal move you pass. <b>Twist:</b> the 6 shaded <b>biofilm</b> squares lock whatever lands on them — they can never be converted. Most cells at the end wins.`,
+bio:`Conjugation: a donor cell passes a plasmid to a neighbor through a pilus, converting the recipient's genotype (horizontal gene transfer). Biofilm matrix physically limits contact.`,
+mount(root){
+const DIRS=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]],WT=[100,-20,10,5,5,10,-20,100,-20,-50,-2,-2,-2,-2,-50,-20,10,-2,-1,-1,-1,-1,-2,10,5,-2,-1,-1,-1,-1,-2,5,5,-2,-1,-1,-1,-1,-2,5,10,-2,-1,-1,-1,-1,-2,10,-20,-50,-2,-2,-2,-2,-50,-20,100,-20,10,5,5,10,-20,100];
+let b,turn,lock,mode='vs AI',over=false,lastPass='',dead=false;const T=(f,ms)=>setTimeout(()=>{if(!dead)f()},ms);
+function init(){b=Array(64).fill(-1);b[27]=b[36]=1;b[28]=b[35]=0;lock=new Set();while(lock.size<6){const i=R(64);if(![27,28,35,36].includes(i))lock.add(i)}turn=0;over=false;lastPass='';render()}
+function flips(bd,i,s){if(bd[i]!==-1)return[];const r=i>>3,c=i&7,out=[];for(const[dr,dc]of DIRS){const line=[];let rr=r+dr,cc=c+dc;
+ while(rr>=0&&rr<8&&cc>=0&&cc<8&&bd[rr*8+cc]===1-s){line.push(rr*8+cc);rr+=dr;cc+=dc}
+ if(line.length&&rr>=0&&rr<8&&cc>=0&&cc<8&&bd[rr*8+cc]===s)out.push(...line.filter(j=>!lock.has(j)))}return out}
+const legal=(bd,s)=>{const o=[];for(let i=0;i<64;i++){const f=flips(bd,i,s);if(f.length)o.push([i,f])}return o};
+function play(i,f){b[i]=turn;f.forEach(j=>b[j]=turn);advance()}
+function advance(){const nx=1-turn;if(legal(b,nx).length){turn=nx;lastPass=''}else if(legal(b,turn).length){lastPass=`${turn===0?'Red':'Blue'} has no move — passes.`}else over=true;render()}
+function ai(){if(over||turn!==1||mode!=='vs AI')return;const ms=legal(b,1);let best=ms[0],bv=-1e9;
+ for(const[i,f]of ms){const nb=b.slice();nb[i]=1;f.forEach(j=>nb[j]=1);let v=WT[i]+f.length*2+(lock.has(i)?25:0);const opp=legal(nb,0);v-=opp.length*1.5;for(const[k]of opp)v-=WT[k]>50?40:0;v+=Math.random();if(v>bv){bv=v;best=[i,f]}}
+ play(best[0],best[1])}
+function render(){const lg=over?[]:legal(b,turn),ls=new Map(lg),cnt=s=>b.filter(x=>x===s).length;
+ let cells='';for(let i=0;i<64;i++){const can=ls.has(i)&&!(mode==='vs AI'&&turn===1);
+  cells+=`<div class="cell" data-a="sq" data-i="${i}" style="width:50px;height:50px;background:${lock.has(i)?'#cfc6ad':'#e7f0e4'};border:1px solid #fff;cursor:${can?'pointer':'default'}">${b[i]>=0?`<div style="width:38px;height:38px;border-radius:50%;background:${COLORS[b[i]]}"></div>`:can?'<div style="width:12px;height:12px;border-radius:50%;background:#0003"></div>':''}</div>`}
+ root.innerHTML=`<div class="layout"><div class="panel"><div style="display:grid;grid-template-columns:repeat(8,50px);width:max-content">${cells}</div></div>
+ <div class="panel"><div class="bar">${opts('mode',['vs AI','2 players'],mode)}<button class="btn" data-a="new">Restart</button></div>
+ <div class="big"><span style="color:${COLORS[0]}">Blue ${cnt(0)}</span> · <span style="color:${COLORS[1]}">Red ${cnt(1)}</span></div>
+ ${over?`<div class="over">🏁 ${cnt(0)===cnt(1)?'Draw':cnt(0)>cnt(1)?'Blue wins':'Red wins'}</div>`:`<p>${turn===0?'Blue':'Red'} to move${mode==='vs AI'&&turn===1?' (AI)':''}</p>`}<p class="mut">${lastPass}</p><p class="mut" style="font-size:.85rem">Shaded = biofilm (locked once placed). You are Blue.</p></div></div>`;
+ if(!over&&mode==='vs AI'&&turn===1)T(ai,400)}
+root.onclick=e=>{const t=e.target.closest('[data-a]');if(!t)return;const a=t.dataset.a;
+ if(a==='mode'){mode=t.dataset.v;init();return}if(a==='new'){init();return}
+ if(a==='sq'&&!over&&!(mode==='vs AI'&&turn===1)){const i=+t.dataset.i,f=flips(b,i,turn);if(f.length)play(i,f)}};
+init();return()=>{dead=true}}});
+
+DEMOS.push({id:'rps',name:'Colicin Ring',genre:'Simultaneous bluffing (rock-paper-scissors)',players:'2–10 (you + AI)',
+pitch:'Everyone secretly picks Producer / Sensitive / Resistant at once. Real E. coli rock-paper-scissors.',
+how:`Players sit in a ring. Each round everyone secretly chooses a strategy, then all reveal. You play against <b>both neighbors</b>: <b>Producer beats Sensitive</b>, <b>Sensitive beats Resistant</b>, <b>Resistant beats Producer</b>. Win = +1 population, loss = −1. An <b>environment card</b> each round changes the payoffs. Highest population after 8 rounds wins. AIs try to read their neighbors' habits.`,
+bio:`Based on the real colicin system in E. coli (Kerr et al. 2002, <i>Nature</i>): producers kill sensitive cells with colicin; resistant cells beat producers because making colicin is costly; sensitive cells outgrow resistant ones because resistance has a cost. Local interactions (neighbors) keep all three alive.`,
+mount(root){
+const ST={P:{n:'Producer',c:'#c53030'},S:{n:'Sensitive',c:'#2b6cb0'},Rr:{n:'Resistant',c:'#2f855a'}},BEATS={P:'S',S:'Rr',Rr:'P'};
+const ENV=[{n:'Normal',d:'Standard payoffs.'},{n:'Rich medium',d:'Every win gives +2 instead of +1.'},{n:'Starvation',d:'Producers pay −1 extra (colicin is expensive).'},{n:'Dense culture',d:'Ties (same strategy) both lose 1 — crowding.'},{n:'Phage bloom',d:'Sensitive players lose 1 extra.'}];
+let S=null,n=6;
+function setup(){S=null;root.innerHTML=`<div class="panel">Players: <div class="bar">${opts('n',[2,3,4,5,6,7,8,9,10],n)}</div><button class="btn primary" data-a="start">Start</button></div>`}
+const nb=i=>[...new Set([(i+n-1)%n,(i+1)%n])].filter(j=>j!==i);
+function start(){S={round:1,env:pick(ENV),players:Array.from({length:n},(_,i)=>({name:i?`AI ${i}`:'You',pop:10,hist:[],last:null,delta:0})),over:false,revealed:false};render()}
+function aiChoice(i){const ns=nb(i),cnt={P:0,S:0,Rr:0};for(const j of ns)for(const h of S.players[j].hist.slice(-3))cnt[h]++;
+ const pred=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0],counter=Object.keys(BEATS).find(k=>BEATS[k]===pred);
+ let c=Math.random()<.55&&S.players[ns[0]].hist.length?counter:pick(['P','S','Rr']);if(S.env.n==='Starvation'&&c==='P'&&Math.random()<.5)c=pick(['S','Rr']);if(S.env.n==='Phage bloom'&&c==='S'&&Math.random()<.5)c=pick(['P','Rr']);return c}
+function choose(c){const ch=S.players.map((p,i)=>i===0?c:aiChoice(i)),win=S.env.n==='Rich medium'?2:1;
+ S.players.forEach((p,i)=>{let d=0;for(const j of nb(i)){if(BEATS[ch[i]]===ch[j])d+=win;else if(BEATS[ch[j]]===ch[i])d-=1;else if(S.env.n==='Dense culture')d-=1}
+  if(S.env.n==='Starvation'&&ch[i]==='P')d-=1;if(S.env.n==='Phage bloom'&&ch[i]==='S')d-=1;p.delta=d});
+ S.players.forEach((p,i)=>{p.pop+=p.delta;p.last=ch[i];p.hist.push(ch[i])});S.revealed=true;if(S.round>=8)S.over=true;render()}
+function render(){const R0=150,cx=190,cy=170;
+ const seats=S.players.map((p,i)=>{const a=-Math.PI/2+2*Math.PI*i/n,x=cx+R0*Math.cos(a),y=cy+R0*Math.sin(a);
+  return `<div style="position:absolute;left:${x-48}px;top:${y-34}px;width:96px;text-align:center;background:#fff;border:2px solid ${i===0?COLORS[0]:'#d9d4c7'};border-radius:10px;padding:4px;font-size:.8rem"><b>${p.name}</b><br>pop ${p.pop}${S.revealed?` (${p.delta>=0?'+':''}${p.delta})`:''}<br>${S.revealed&&p.last?`<span style="color:${ST[p.last].c};font-weight:700">${ST[p.last].n}</span>`:'<span class="mut">?</span>'}</div>`}).join('');
+ const rank=[...S.players].sort((a,b)=>b.pop-a.pop);
+ root.innerHTML=`<div class="layout"><div class="panel"><div style="position:relative;width:380px;height:340px;margin:auto">${seats}</div></div>
+ <div class="panel"><div class="big">Round ${S.round}/8</div><div><b>Environment: ${S.env.n}</b> — ${S.env.d}</div>
+ ${S.over?`<div class="over">🏁 ${rank[0].name} wins with pop ${rank[0].pop}</div><button class="btn primary" data-a="again">New game</button>`:S.revealed?`<button class="btn primary" data-a="next">Next round</button>`:`<p>Choose secretly:</p>${Object.keys(ST).map(k=>`<button class="btn" data-a="c" data-v="${k}" style="color:${ST[k].c}">${ST[k].n}</button>`).join('')}<p class="mut" style="font-size:.82rem">P beats S · S beats R · R beats P</p>`}
+ <div style="margin-top:8px">${rank.map(p=>`<div>${p.name}: ${p.pop}</div>`).join('')}</div></div></div>`}
+root.onclick=e=>{const t=e.target.closest('[data-a]');if(!t)return;const a=t.dataset.a;
+ if(a==='n'){n=+t.dataset.v;setup()}else if(a==='start')start();else if(a==='again')setup();
+ else if(a==='next'){S.round++;S.env=pick(ENV);S.revealed=false;render()}else if(a==='c'&&!S.revealed)choose(t.dataset.v)};
+setup()}});
+
+DEMOS.push({id:'deck',name:'Genome Builder',genre:'Deck-building (Dominion-style)',players:'You vs AI',
+pitch:'Your deck is your genome. Buy genes, trash junk DNA, race to the most fitness.',
+how:`Start: 7 Glucose (+1 ATP) and 3 Junk DNA (useless). Each turn draw 5. <b>Action phase</b>: you have 1 action; click action cards in hand to play them. <b>Buy phase</b>: your Glucose is counted automatically with any ATP from actions; buy 1 card from the market (it goes to your discard pile). Fitness cards (green) are worth points at the end but clog your hand. Game ends when the <b>Genomic island</b> pile runs out or after 20 turns each. Most fitness wins.`,
+bio:`Genome as a deck: acquiring genes (horizontal transfer, plasmids) adds abilities; transposons can cut sequences out; junk/non-coding DNA costs replication without benefit; big genomic islands carry many fitness genes at once.`,
+mount(root){
+const C={glu:{n:'Glucose',c:0,t:'treasure',atp:1,d:'+1 ATP'},junk:{n:'Junk DNA',c:0,t:'junk',d:'Does nothing'},
+ lacop:{n:'lac operon',c:3,t:'action',d:'+2 ATP',f:s=>{s.atp+=2}},ribo:{n:'Ribosome',c:3,t:'action',d:'+2 cards',f:s=>draw(s.me,2)},
+ rnap:{n:'RNA Pol',c:4,t:'action',d:'+1 card, +1 action, +1 ATP',f:s=>{draw(s.me,1);s.act++;s.atp++}},
+ tn:{n:'Transposon',c:2,t:'action',d:'Trash up to 2 Junk DNA/Glucose from hand (Junk first)',f:s=>{const P=s.me;let k=0;for(const nm of['junk','glu'])while(k<2&&P.hand.includes(nm)&&!(nm==='glu'&&P.hand.filter(x=>x==='glu').length<=3)){P.hand.splice(P.hand.indexOf(nm),1);k++;s.log(`${P.name} trashes ${C[nm].n}.`)}}},
+ col:{n:'Colicin',c:5,t:'action',d:'+2 ATP; opponent draws 1 fewer card next turn',f:s=>{s.atp+=2;s.op.penalty=1}},
+ pl:{n:'Plasmid',c:4,t:'action',d:'+1 action; gain a free lac operon',f:s=>{s.act++;s.me.disc.push('lacop')}},
+ fit1:{n:'Fitness gene',c:2,t:'vp',vp:1,d:'1 fitness'},fit3:{n:'Operon cluster',c:5,t:'vp',vp:3,d:'3 fitness'},fit6:{n:'Genomic island',c:8,t:'vp',vp:6,d:'6 fitness'}};
+const MK=['glu','tn','lacop','ribo','rnap','pl','col','fit1','fit3','fit6'];
+let S=null,dead=false;const T=(f,ms)=>setTimeout(()=>{if(!dead)f()},ms);
+function mkP(name){const P={name,deck:shuf([...Array(7).fill('glu'),...Array(3).fill('junk')]),disc:[],hand:[],play:[],penalty:0};return P}
+function draw(P,k){for(let i=0;i<k;i++){if(!P.deck.length){if(!P.disc.length)return;P.deck=shuf(P.disc);P.disc=[]}P.hand.push(P.deck.pop())}}
+const log=s=>{S.log.unshift(s);S.log.length=Math.min(S.log.length,12)};
+const vp=P=>[...P.deck,...P.disc,...P.hand,...P.play].reduce((a,k)=>a+(C[k].vp||0),0);
+function start(){S={P:[mkP('You'),mkP('AI')],cur:0,turns:[0,0],supply:{glu:40,tn:10,lacop:10,ribo:10,rnap:10,pl:8,col:8,fit1:12,fit3:10,fit6:8},log:[],over:false};S.P.forEach(P=>draw(P,5));begin()}
+function ctx(){const p=S.cur;return{me:S.P[p],op:S.P[1-p],get atp(){return S.atp},set atp(v){S.atp=v},get act(){return S.act},set act(v){S.act=v},log}}
+function begin(){S.atp=0;S.act=1;S.bought=false;S.turns[S.cur]++;render();if(S.cur===1)T(ai,500)}
+const treasure=P=>P.hand.filter(k=>C[k].t==='treasure').length;
+function playAction(hi){const P=S.P[S.cur],k=P.hand[hi];if(C[k].t!=='action'||S.act<1||S.bought)return;S.act--;P.hand.splice(hi,1);P.play.push(k);log(`${P.name} plays ${C[k].n}.`);C[k].f(ctx())}
+const budget=()=>S.atp+treasure(S.P[S.cur]);
+function buy(k){const P=S.P[S.cur];if(S.bought||!S.supply[k]||C[k].c>budget())return false;S.supply[k]--;P.disc.push(k);S.bought=true;log(`${P.name} buys ${C[k].n}.`);return true}
+function endTurn(){const P=S.P[S.cur];P.disc.push(...P.hand,...P.play);P.hand=[];P.play=[];
+ if(!S.supply.fit6||(S.turns[0]>=20&&S.turns[1]>=20)){S.over=true;return render()}
+ S.cur=1-S.cur;const N=S.P[S.cur];draw(N,5-N.penalty);if(N.penalty)log(`${N.name} is hit by colicin: draws 4.`);N.penalty=0;begin()}
+function ai(){if(S.over||S.cur!==1)return;const P=S.P[1];
+ for(let g=0;g<10&&S.act>0;g++){const order=['rnap','pl','ribo','col','lacop','tn'];const k=order.find(x=>P.hand.includes(x));if(!k)break;playAction(P.hand.indexOf(k))}
+ const b=budget(),fit6=S.supply.fit6,late=S.turns[1]>12||fit6<=4;
+ const pref=b>=8?['fit6']:b>=6?(late?['fit3','col']:['col','rnap','fit3']):b>=5?(late?['fit3']:['col','rnap','pl']):b>=4?['rnap','pl','lacop']:b>=3?['lacop','ribo']:b>=2?(late?['fit1']:S.P[1].disc.concat(P.deck,P.hand).filter(x=>x==='junk').length?['tn']:['fit1']):[];
+ for(const k of pref)if(buy(k))break;render();T(endTurn,500)}
+function render(){const P=S.P[S.cur],me=S.P[0],my=S.cur===0&&!S.over;
+ const col=k=>C[k].t==='vp'?'#2f855a':C[k].t==='action'?'#2b6cb0':C[k].t==='junk'?'#a0aec0':'#b7791f';
+ root.innerHTML=`<div class="layout"><div><div class="panel"><b>Market</b> ${my?`— budget <b>${budget()}</b> ATP${S.bought?' (bought)':''}`:''}<div>${MK.map(k=>`<div class="gc ${my&&!S.bought&&S.supply[k]&&C[k].c<=budget()?'':'dis'}" data-a="buy" data-v="${k}" style="border-color:${col(k)};min-height:110px"><span class="k">cost ${C[k].c} · left ${S.supply[k]}</span><b style="color:${col(k)}">${C[k].n}</b><span>${C[k].d}</span></div>`).join('')}</div></div>
+ <div class="panel" style="margin-top:8px"><b>${my?'Your hand':P.name+"'s hand"}</b> ${my?`— actions left ${S.act}`:''}<div>${(my?me:P).hand.map((k,i)=>`<div class="gc ${my&&C[k].t==='action'&&S.act>0&&!S.bought?'':'dis'}" data-a="pa" data-i="${i}" style="border-color:${col(k)};min-height:90px"><b style="color:${col(k)}">${C[k].n}</b><span>${C[k].d}</span></div>`).join('')}</div>
+ ${P.play.length?`<div class="mut">In play: ${P.play.map(k=>C[k].n).join(', ')}</div>`:''}</div></div>
+ <div class="panel">${S.over?`<div class="over">🏁 ${vp(S.P[0])===vp(S.P[1])?'Tie':vp(S.P[0])>vp(S.P[1])?'You win':'AI wins'}</div><button class="btn primary" data-a="new">New game</button>`:my?`<button class="btn primary" data-a="end">End turn</button>`:'<span class="mut">AI turn…</span>'}
+ ${S.P.map(Q=>`<div style="margin-top:6px"><b>${Q.name}</b>: ${vp(Q)} fitness · genome ${Q.deck.length+Q.disc.length+Q.hand.length+Q.play.length} cards · turn ${S.turns[S.P.indexOf(Q)]}/20</div>`).join('')}
+ <div class="log">${S.log.map(l=>`<div>${l}</div>`).join('')}</div></div></div>`}
+root.onclick=e=>{const t=e.target.closest('[data-a]');if(!t)return;const a=t.dataset.a;if(a==='new'){start();return}
+ if(!S||S.over||S.cur!==0)return;if(a==='pa'){playAction(+t.dataset.i);render()}else if(a==='buy'){if(buy(t.dataset.v))render()}else if(a==='end')endTurn()};
+start();return()=>{dead=true}}});
+
+DEMOS.push({id:'workers',name:'Cell Factory',genre:'Worker placement (Agricola-lite)',players:'You vs 1–3 AI',
+pitch:'Place your enzymes on cell processes. Each spot can be taken by only one player — block your rivals.',
+how:`8 rounds. Players take turns placing one enzyme (worker) on an open action space until everyone runs out of workers. Each space holds one enzyme per round (Import Glucose holds 2). Resources: ATP, amino acids (AA), mRNA. Making a protein = 3 fitness. Most fitness after 8 rounds wins. Start player rotates each round.`,
+bio:`Central dogma as an economy: transcription needs energy and makes mRNA; translation needs mRNA + amino acids + ATP; DNA replication lets the cell divide (more workers). Limited enzymes = limited machinery; competing for the same spaces = competing for shared resources.`,
+mount(root){
+const SP=[{id:'glu',n:'Import glucose',d:'+2 ATP',cap:2,can:P=>true,f:P=>{P.atp+=2}},{id:'aa',n:'Import amino acids',d:'+2 AA',cap:1,can:P=>true,f:P=>{P.aa+=2}},
+ {id:'tx',n:'Transcribe',d:'pay 1 ATP → +2 mRNA',cap:1,can:P=>P.atp>=1,f:P=>{P.atp--;P.mrna+=2}},{id:'tl',n:'Translate',d:'pay 1 mRNA, 2 AA, 1 ATP → protein (+3 fitness)',cap:1,can:P=>P.mrna>=1&&P.aa>=2&&P.atp>=1,f:P=>{P.mrna--;P.aa-=2;P.atp--;P.fit+=3}},
+ {id:'tl2',n:'Polysome',d:'pay 2 mRNA, 4 AA, 2 ATP → 2 proteins (+6)',cap:1,can:P=>P.mrna>=2&&P.aa>=4&&P.atp>=2,f:P=>{P.mrna-=2;P.aa-=4;P.atp-=2;P.fit+=6}},
+ {id:'rep',n:'Replicate DNA',d:'pay 3 ATP → +1 enzyme from next round (max 5)',cap:1,can:P=>P.atp>=3&&P.w<5,f:P=>{P.atp-=3;P.w++}},
+ {id:'tox',n:'Secrete toxin',d:'pay 1 ATP → every rival loses 1 AA',cap:1,can:P=>P.atp>=1,f:(P,S)=>{P.atp--;S.players.forEach(q=>{if(q!==P)q.aa=Math.max(0,q.aa-1)})}},
+ {id:'first',n:'Quorum signal',d:'+1 ATP, become start player next round',cap:1,can:P=>true,f:(P,S)=>{P.atp++;S.nextFirst=S.players.indexOf(P)}}];
+let S=null,nAI=2,dead=false;const T=(f,ms)=>setTimeout(()=>{if(!dead)f()},ms);
+const log=s=>{S.log.unshift(s);S.log.length=Math.min(S.log.length,12)};
+function setup(){S=null;root.innerHTML=`<div class="panel">Opponents: <div class="bar">${opts('n',[1,2,3],nAI)}</div><button class="btn primary" data-a="start">Start</button></div>`}
+function start(){S={players:Array.from({length:nAI+1},(_,i)=>({name:i?`AI ${i}`:'You',atp:2,aa:1,mrna:0,fit:0,w:3,left:3})),round:1,first:0,nextFirst:null,turn:0,occ:{},log:[],over:false};newRound()}
+function newRound(){S.occ={};SP.forEach(s=>S.occ[s.id]=[]);S.players.forEach(p=>p.left=p.w);if(S.nextFirst!=null){S.first=S.nextFirst;S.nextFirst=null}S.turn=S.first;step()}
+const open=(P,s)=>S.occ[s.id].length<s.cap&&s.can(P);
+function place(p,id){const P=S.players[p],s=SP.find(x=>x.id===id);if(!open(P,s)||P.left<1)return false;S.occ[id].push(p);P.left--;s.f(P,S);log(`${P.name} → ${s.n}`);return true}
+function step(){if(S.players.every(p=>p.left<=0)){if(S.round>=8){S.over=true;return render()}S.round++;S.first=S.nextFirst!=null?S.first:(S.first+1)%S.players.length;return newRound()}
+ let k=0;while(S.players[S.turn].left<=0&&k++<10)S.turn=(S.turn+1)%S.players.length;
+ const P=S.players[S.turn];if(!SP.some(s=>open(P,s))){log(`${P.name} has nowhere to go — enzyme idles.`);P.left--;S.turn=(S.turn+1)%S.players.length;return step()}
+ render();if(S.turn!==0)T(ai,450)}
+function ai(){if(S.over||S.turn===0)return;const p=S.turn,P=S.players[p];
+ const pr=[P.mrna>=2&&P.aa>=4&&P.atp>=2&&'tl2',P.mrna>=1&&P.aa>=2&&P.atp>=1&&'tl',S.round<=5&&P.w<5&&P.atp>=3&&'rep',P.mrna<2&&P.atp>=1&&'tx',P.aa<2&&'aa',P.atp<2&&'glu','aa','glu',Math.random()<.3&&'tox','first','tx','tox'].filter(Boolean);
+ for(const id of pr)if(place(p,id))break;S.turn=(S.turn+1)%S.players.length;step()}
+function render(){const my=S.turn===0&&!S.over,me=S.players[0];
+ root.innerHTML=`<div class="layout"><div class="panel"><div class="big">Round ${S.round}/8 ${my?`— place an enzyme (${me.left} left)`:''}</div><div>${SP.map(s=>{const ok=my&&open(me,s);return `<div class="gc ${ok?'':'dis'}" data-a="sp" data-v="${s.id}" style="width:170px;min-height:105px"><b>${s.n}</b><span>${s.d}</span><span style="margin-top:auto">${S.occ[s.id].map(p=>`<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${COLORS[p]};margin-right:2px"></span>`).join('')}${Array(s.cap-S.occ[s.id].length).fill('<span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:1px dashed #aaa;margin-right:2px"></span>').join('')}</span></div>`}).join('')}</div></div>
+ <div class="panel">${S.over?`<div class="over">🏁 ${[...S.players].sort((a,b)=>b.fit-a.fit)[0].name} wins</div><button class="btn primary" data-a="again">New game</button>`:''}
+ ${S.players.map((P,i)=>`<div style="margin-top:6px;${i===S.turn&&!S.over?'font-weight:700':''}"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${COLORS[i]}"></span> ${P.name}${i===S.first?' ★':''} — <b>${P.fit}</b> fit<br><span class="mut" style="font-size:.85rem">ATP ${P.atp} · AA ${P.aa} · mRNA ${P.mrna} · enzymes ${P.left}/${P.w}</span></div>`).join('')}
+ <div class="log">${S.log.map(l=>`<div>${l}</div>`).join('')}</div></div></div>`}
+root.onclick=e=>{const t=e.target.closest('[data-a]');if(!t)return;const a=t.dataset.a;
+ if(a==='n'){nAI=+t.dataset.v;setup()}else if(a==='start')start();else if(a==='again')setup();
+ else if(a==='sp'&&S&&!S.over&&S.turn===0){if(place(0,t.dataset.v)){S.turn=(S.turn+1)%S.players.length;step()}}};
+setup();return()=>{dead=true}}});
+
+DEMOS.push({id:'swarm',name:'Predator.io',genre:'Real-time arcade (agar.io–style)',players:'You vs 7 AI (online = 2–10 humans)',
+pitch:'Steer your cell, eat nutrients, and invade anything smaller. Bigger = slower.',
+how:`Move your mouse (or finger) over the dish to steer. Eat yellow nutrient dots to grow. Touch a cell that is clearly smaller than you (under 80% of your size) to invade and consume it. Bigger cells move slower. A drifting <b>antibiotic cloud</b> (red) shrinks anything inside it. Biggest cell after 90 seconds wins — or be the last one standing.`,
+bio:`Bdellovibrio bacteriovorus is a real predatory bacterium that invades and consumes other Gram-negative bacteria. Growth needs nutrient uptake; larger cells have lower surface-to-volume ratio (here: slower). Antibiotic exposure shrinks the population.`,
+mount(root){
+const W=820,H=480;root.innerHTML=`<div class="panel"><canvas id="cv" width="${W}" height="${H}" style="cursor:crosshair;touch-action:none"></canvas><div class="bar"><button class="btn" data-a="re">Restart</button><span id="st" class="mut"></span></div></div>`;
+const cv=root.querySelector('#cv'),g=cv.getContext('2d'),st=root.querySelector('#st');let S,raf,last,mouse={x:W/2,y:H/2};
+const rad=c=>Math.sqrt(c.m)*2.2;
+function reset(){S={t:90,cells:Array.from({length:8},(_,i)=>({x:60+R(W-120),y:60+R(H-120),m:20,col:COLORS[i],me:i===0,alive:true,tx:R(W),ty:R(H)})),food:Array.from({length:90},()=>({x:R(W),y:R(H)})),cloud:{x:R(W),y:R(H),vx:30,vy:20,r:70},over:null}}
+function step(dt){if(S.over)return;S.t-=dt;const cl=S.cloud;cl.x+=cl.vx*dt;cl.y+=cl.vy*dt;if(cl.x<0||cl.x>W)cl.vx*=-1;if(cl.y<0||cl.y>H)cl.vy*=-1;
+ const alive=S.cells.filter(c=>c.alive);
+ for(const c of alive){let tx,ty;if(c.me){tx=mouse.x;ty=mouse.y}else{
+   let best=null,bd=1e9;for(const o of alive)if(o!==c){const d=Math.hypot(o.x-c.x,o.y-c.y);if(o.m>c.m*1.25&&d<150){tx=c.x-(o.x-c.x);ty=c.y-(o.y-c.y);best='flee';break}if(o.m*1.25<c.m&&d<bd){bd=d;best=o}}
+   if(best&&best!=='flee'&&bd<220){tx=best.x;ty=best.y}else if(best!=='flee'){let fd=1e9;for(const f of S.food){const d=Math.hypot(f.x-c.x,f.y-c.y);if(d<fd){fd=d;tx=f.x;ty=f.y}}}
+   if(Math.hypot(cl.x-c.x,cl.y-c.y)<cl.r+rad(c)+20){tx=c.x-(cl.x-c.x);ty=c.y-(cl.y-c.y)}}
+  const dx=tx-c.x,dy=ty-c.y,d=Math.hypot(dx,dy)||1,sp=160/Math.sqrt(c.m/20+1);if(d>3){c.x+=dx/d*Math.min(sp*dt,d);c.y+=dy/d*Math.min(sp*dt,d)}
+  c.x=Math.max(0,Math.min(W,c.x));c.y=Math.max(0,Math.min(H,c.y));
+  if(Math.hypot(cl.x-c.x,cl.y-c.y)<cl.r)c.m=Math.max(5,c.m-12*dt);
+  S.food=S.food.filter(f=>{if(Math.hypot(f.x-c.x,f.y-c.y)<rad(c)){c.m+=1.5;return false}return true})}
+ for(const a of alive)for(const b of alive)if(a!==b&&a.alive&&b.alive&&b.m<a.m*.8&&Math.hypot(a.x-b.x,a.y-b.y)<rad(a)-rad(b)*.3){a.m+=b.m*.8;b.alive=false}
+ while(S.food.length<90)S.food.push({x:R(W),y:R(H)});
+ const me=S.cells[0],rest=S.cells.filter(c=>c.alive);
+ if(!me.alive)S.over='You were consumed!';else if(rest.length===1)S.over='Last cell standing — you win!';
+ else if(S.t<=0){const top=rest.sort((a,b)=>b.m-a.m)[0];S.over=top.me?'Time! You are the biggest — you win!':'Time! A rival is bigger — you lose.'}}
+function draw(){g.clearRect(0,0,W,H);g.fillStyle='#d69e2e';for(const f of S.food){g.beginPath();g.arc(f.x,f.y,2.5,0,7);g.fill()}
+ const cl=S.cloud;g.fillStyle='#c5303033';g.beginPath();g.arc(cl.x,cl.y,cl.r,0,7);g.fill();
+ for(const c of [...S.cells].filter(c=>c.alive).sort((a,b)=>a.m-b.m)){g.fillStyle=c.col;g.beginPath();g.arc(c.x,c.y,rad(c),0,7);g.fill();if(c.me){g.strokeStyle='#000';g.lineWidth=3;g.stroke();g.lineWidth=1}
+  g.fillStyle='#fff';g.font='11px sans-serif';g.fillText(c.m|0,c.x-8,c.y+4)}
+ if(S.over){g.fillStyle='#1d2430cc';g.fillRect(0,0,W,H);g.fillStyle='#fff';g.font='bold 26px sans-serif';g.fillText(S.over,W/2-g.measureText(S.over).width/2,H/2)}
+ st.textContent=`⏱ ${Math.max(0,S.t).toFixed(0)}s · your mass ${S.cells[0].m|0} · rivals alive ${S.cells.filter(c=>c.alive&&!c.me).length}`}
+function loop(t){const dt=Math.min(.05,(t-(last||t))/1000);last=t;step(dt);draw();raf=requestAnimationFrame(loop)}
+const mv=e=>{const r=cv.getBoundingClientRect(),p=e.touches?e.touches[0]:e;mouse.x=(p.clientX-r.left)*W/r.width;mouse.y=(p.clientY-r.top)*H/r.height};
+cv.addEventListener('mousemove',mv);cv.addEventListener('touchmove',e=>{mv(e);e.preventDefault()},{passive:false});
+root.onclick=e=>{if(e.target.closest('[data-a="re"]'))reset()};
+reset();raf=requestAnimationFrame(loop);return()=>cancelAnimationFrame(raf)}});
+
+const app=document.getElementById('app');let cleanup=null;
+function menu(){cleanup&&cleanup();cleanup=null;location.hash='';
+app.innerHTML=`<h1>Molecular Bio Game Demos</h1><div class="mut">${DEMOS.length} sketchy prototypes — testing which core loop is fun. Not balanced, not final.</div>
+<div class="menu">${DEMOS.map((d,i)=>`<div class="mcard" data-i="${i}"><div class="g">${d.genre}</div><h3>${i+1}. ${d.name}</h3><p>${d.pitch}</p><p class="mut">👥 ${d.players}</p></div>`).join('')}</div>`;
+app.onclick=e=>{const c=e.target.closest('.mcard');if(c)open(+c.dataset.i)};}
+function open(i){const d=DEMOS[i];cleanup&&cleanup();location.hash=d.id;
+app.onclick=e=>{if(e.target.closest('[data-back]'))menu()};
+app.innerHTML=`<div class="top"><button class="btn" data-back>← All demos</button><h2>${i+1}. ${d.name}</h2><span class="chip">${d.genre}</span><span class="chip">👥 ${d.players}</span></div>
+<details class="info" open><summary>How to play</summary><div>${d.how}</div></details>
+<details class="info"><summary>Bio mapping</summary><div>${d.bio}</div></details><div id="root"></div>`;
+cleanup=d.mount(document.getElementById('root'))||null;}
+const h=location.hash.slice(1),ix=DEMOS.findIndex(d=>d.id===h);ix>=0?open(ix):menu();
+</script></body></html>
