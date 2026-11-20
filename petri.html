@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Petri — Bacterial Territory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* VOICE: a fluorescence microscope at night — quiet, precise, glowing colonies on black agar.
+   IDEA: the game board is a petri dish under dark-field fluorescence; each player is a strain tagged with a real fluorescent protein.
+   PICTURE: a 3D glass dish with glowing colony domes, sugar crystals, phage particles and DNA strands sitting on the agar.
+   COLOUR and TYPE: near-black agar #04080a, glass cyan edge, player colours are FP emission colours; Space Grotesk numbers, Inter text.
+   LAYOUT: dish fills the screen; thin glass HUD panels at the edges; mutation tree slides up as a drawer. */
+:root{color-scheme:dark;--bg:#04080a;--ink:#e3f1ee;--mut:#7f9a96;--line:rgba(150,255,225,.13);--panel:rgba(7,13,15,.74);--glass:rgba(160,230,255,.08);--acc:#2dff9b;--bad:#ff4d5e}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.45 Inter,system-ui,sans-serif;overflow:hidden}
+button{font:inherit;color:inherit}
+#stage{position:fixed;inset:0;background:radial-gradient(ellipse at 50% 45%,#0c2124 0%,#06100f 45%,#020404 100%)}
+#stage canvas{display:block;width:100%;height:100%;touch-action:none}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.num{font-family:'Space Grotesk',Inter,sans-serif;font-variant-numeric:tabular-nums}
+#top{position:fixed;top:12px;left:12px;right:12px;display:flex;gap:10px;align-items:center;pointer-events:none;flex-wrap:wrap}
+#top>*{pointer-events:auto}
+.brand{font-family:'Space Grotesk';font-weight:700;font-size:22px;letter-spacing:.02em;padding:8px 14px;display:flex;align-items:center;gap:10px}
+.brand i{width:12px;height:12px;border-radius:50%;background:var(--acc);box-shadow:0 0 14px var(--acc)}
+.brand small{font:500 12px Inter;color:var(--mut);letter-spacing:0}
+#roundbox{padding:8px 14px;display:flex;gap:16px;align-items:center}
+#roundbox b{font-size:18px}
+.warn{color:#ff8a9a}
+.sp{flex:1}
+.btn{background:var(--glass);border:1px solid var(--line);border-radius:10px;padding:8px 13px;cursor:pointer;min-height:38px;transition:background .15s,border-color .15s}
+.btn:hover{border-color:rgba(150,255,225,.4);background:rgba(160,230,255,.14)}
+.btn:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.btn:disabled{opacity:.35;cursor:default}
+.btn.pri{background:var(--acc);color:#02130b;border-color:transparent;font-weight:600}
+.btn.on{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc)}
+#players{position:fixed;top:74px;right:12px;width:270px;max-height:calc(100vh - 250px);overflow:auto;padding:10px}
+.pl{display:grid;grid-template-columns:14px 1fr auto;gap:8px;align-items:center;padding:6px 6px;border-radius:9px}
+.pl.cur{background:rgba(255,255,255,.06)}
+.pl.dead{opacity:.35;text-decoration:line-through}
+.pl .dot{width:12px;height:12px;border-radius:50%}
+.pl .nm{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl .sub{font-size:11.5px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl .cells{font-size:18px;font-weight:700;text-align:right}
+#log{position:fixed;left:12px;top:74px;width:290px;padding:10px 12px;font-size:12.5px;color:var(--mut);max-height:230px;overflow:hidden}
+#log div{padding:2px 0;border-bottom:1px solid rgba(255,255,255,.04)}#log div:first-child{color:var(--ink)}
+#bar{position:fixed;left:50%;bottom:12px;transform:translateX(-50%);width:min(980px,calc(100vw - 24px));padding:10px 14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.atp{display:flex;align-items:baseline;gap:6px}
+.atp b{font-size:30px;font-weight:700;line-height:1}
+.chips{display:flex;flex-wrap:wrap;gap:4px;font-size:11.5px;color:var(--mut)}
+.chip{border:1px solid var(--line);border-radius:999px;padding:1px 8px;white-space:nowrap}
+.who{font-weight:700;font-size:15px}
+#offer{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);display:flex;gap:10px;flex-wrap:wrap;justify-content:center;width:min(980px,calc(100vw - 24px))}
+.card{width:200px;padding:12px;cursor:pointer;border-radius:14px;transition:transform .12s,border-color .12s}
+.card:hover{transform:translateY(-3px);border-color:var(--acc)}
+.card .k{font-size:11px;color:var(--mut)}.card b{display:block;font-size:15px;margin:2px 0 4px}
+#tree{position:fixed;left:12px;right:12px;bottom:12px;height:min(560px,70vh);padding:14px 16px;transform:translateY(calc(100% + 30px));transition:transform .28s cubic-bezier(.2,.8,.2,1);overflow:auto;z-index:5}
+#tree.open{transform:none}
+.tcols{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:12px;margin-top:10px}
+.tcol h4{margin:0 0 6px;font:600 13px 'Space Grotesk';color:var(--mut)}
+.node{border:1px dashed rgba(255,255,255,.14);border-radius:11px;padding:7px 9px;margin-bottom:7px;font-size:12px;color:#8aa3a0;position:relative}
+.node b{display:block;font-size:13px;color:#b9cbc8}
+.node .t{position:absolute;top:6px;right:8px;font-size:10.5px;opacity:.8}
+.node.can{border-style:solid;border-color:rgba(150,255,225,.38);color:var(--ink)}
+.node.can b{color:var(--ink)}
+.node.buy{cursor:pointer}.node.buy:hover{background:rgba(255,255,255,.06)}
+.node.own{border-style:solid;color:#03110c}
+.node.own b{color:#03110c}
+.node .req{font-size:10.5px;opacity:.75;margin-top:2px}
+.sprow{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+#tip{position:fixed;pointer-events:none;padding:7px 10px;font-size:12.5px;display:none;z-index:9;max-width:260px}
+#modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(1,4,5,.6);z-index:10;padding:16px}
+#modal.show{display:flex}
+.mbox{width:min(1040px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:22px 24px}
+.mbox h1{font:700 40px/1.05 'Space Grotesk';margin:0 0 4px}
+.mbox h2{font:600 15px 'Space Grotesk';margin:18px 0 8px;color:var(--mut)}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.seats{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px}
+.seat{display:grid;grid-template-columns:14px auto 1fr;gap:8px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:11px}
+select{width:100%}
+select,input[type=number]{font:inherit;color:var(--ink);background:#0b1517;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:14px}
+.spgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.spc{border:1px solid var(--line);border-radius:12px;padding:9px 11px;font-size:12.5px;color:#a9bdba}
+.spc b{color:var(--ink);font-size:14px}.spc em{color:var(--ink)}
+#banner{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);font:700 34px 'Space Grotesk';pointer-events:none;opacity:0;transition:opacity .35s;text-shadow:0 0 30px currentColor;z-index:8;white-space:nowrap}
+table.rk{width:100%;border-collapse:collapse}table.rk td{padding:7px 6px;border-bottom:1px solid var(--line)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:#a9bdba}
+.legend span b{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
+@media(max-width:900px){#log{display:none}#players{width:210px;top:120px}.brand small{display:none}}
+@media(max-width:600px){#players{top:auto;bottom:150px;max-height:180px;width:180px}#bar{gap:8px}.atp b{font-size:24px}}
+@media(prefers-reduced-motion:reduce){#tree{transition:none}.card{transition:none}}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<header id="top">
+ <div class="brand panel"><i></i>PETRI<small>a bacterial territory game</small></div>
+ <div id="roundbox" class="panel num"></div>
+ <div class="sp"></div>
+ <button class="btn panel" id="bTree">Mutation tree <span class="mut">(T)</span></button>
+ <button class="btn panel" id="bRules">Rules</button>
+ <button class="btn panel" id="bNew">New game</button>
+</header>
+<aside id="players" class="panel"></aside>
+<div id="log" class="panel"></div>
+<div id="offer"></div>
+<div id="bar" class="panel"></div>
+<section id="tree" class="panel"></section>
+<div id="tip" class="panel"></div>
+<div id="banner"></div>
+<div id="modal"><div class="mbox panel" id="mbox"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script>
+{
+'use strict';
+const $=s=>document.querySelector(s);
+const RN=n=>Math.floor(Math.random()*n),pick=a=>a[RN(a.length)],shuf=a=>{for(let i=a.length-1;i>0;i--){const j=RN(i+1);[a[i],a[j]]=[a[j],a[i]]}return a};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------------- data ---------------- */
+const FP=[{n:'GFP',c:'#2dff9b'},{n:'mCherry',c:'#ff3d6e'},{n:'EBFP2',c:'#5b84ff'},{n:'YFP',c:'#ffe14a'},{n:'CFP',c:'#39d8ff'},{n:'mOrange',c:'#ff8a2b'},{n:'mPlum',c:'#b05cff'},{n:'mRaspberry',c:'#ff6bd6'},{n:'Citrine',c:'#b8f526'},{n:'T-Sapphire',c:'#e3e8ff'}];
+const TL={glu:{n:'Glucose',c:'#ffc94a'},lac:{n:'Lactose',c:'#ffe7ad'},fe:{n:'Iron',c:'#b7c4d4'},o2:{n:'O₂ pocket',c:'#7fe7ff'},phg:{n:'Phage hotspot',c:'#ff4d5e'},dna:{n:'Free DNA',c:'#c48bff'}};
+const TFREQ=[['glu',.05],['lac',.05],['fe',.035],['o2',.04],['phg',.025],['dna',.012]];
+const BR=['Metabolism','Offense','Movement','Defense','Genetics'],TC=[0,4,6,8,11];
+const TREE={
+ lac:{n:'Lac operon',b:0,t:1,q:[],d:'Lactose tiles give +2 (only +1 if you own 3+ Glucose — catabolite repression).'},
+ sid:{n:'Siderophores',b:0,t:1,q:[],d:'Iron tiles give +3.'},
+ pts:{n:'PTS glucose uptake',b:0,t:1,q:[],d:'Glucose tiles give +3 instead of +2.'},
+ crp:{n:'crp* (CAP without cAMP)',b:0,t:2,q:['lac'],d:'No catabolite repression: Lactose always +2.'},
+ aero:{n:'Aerobic respiration',b:0,t:2,q:['lac','sid','pts'],d:'O₂ pockets give +3 instead of +1.'},
+ fast:{n:'Rapid division',b:0,t:2,q:['lac','sid','pts'],d:'+2 ATP per turn.'},
+ qs:{n:'Quorum sensing',b:0,t:3,q:['fast'],d:'+1 ATP per 8 cells you own.'},
+ stor:{n:'Storage granules (PHB)',b:0,t:3,q:['aero','fast'],d:'ATP cap 20 → 35.'},
+ tox:{n:'Bacteriocin',b:1,t:1,q:[],d:'Invading costs 1 less.'},
+ prot:{n:'Matrix protease',b:1,t:2,q:['tox'],d:'Ignore enemy Biofilm and Capsule surcharges.'},
+ h2o2:{n:'H₂O₂ secretion',b:1,t:2,q:['tox'],d:'Start of your turn: 1 random enemy cell touching you dies.'},
+ t6:{n:'T6SS needle',b:1,t:3,q:['prot'],d:'Your first invasion each turn is free.'},
+ pred:{n:'Predatory lifestyle',b:1,t:3,q:['h2o2','prot'],d:'+1 ATP back per invasion (max 3 per turn).'},
+ abx:{n:'Antibiotic production',b:1,t:4,q:['t6','pred'],d:'You aim the antibiotic waves and are immune to them.'},
+ mot:{n:'Flagella',b:2,t:1,q:[],d:'Grow up to 2 tiles away.'},
+ twi:{n:'Twitching (type IV pili)',b:2,t:1,q:[],d:'Growth reach counts diagonals.'},
+ chemo:{n:'Chemotaxis',b:2,t:2,q:['mot','twi'],d:'Growing onto special tiles is free.'},
+ swarm:{n:'Swarming',b:2,t:3,q:['mot'],d:'Grow up to 3 tiles away.'},
+ disp:{n:'Dispersal',b:2,t:4,q:['swarm','chemo'],d:'Once per turn: grow onto ANY empty tile for 3 ATP.'},
+ bio:{n:'Biofilm',b:3,t:1,q:[],d:'Enemies pay +2 to invade you.'},
+ res:{n:'Resistance plasmid',b:3,t:1,q:[],d:'Survive antibiotic waves. −1 ATP per turn (fitness cost).'},
+ cap:{n:'Capsule',b:3,t:1,q:[],d:'Enemies pay +1 to invade you; immune to H₂O₂.'},
+ comp:{n:'Compensatory mutation',b:3,t:2,q:['res'],d:'Resistance no longer costs ATP.'},
+ pers:{n:'Persister cells',b:3,t:2,q:['bio','cap'],d:'Each of your cells hit by a wave survives 50% of the time.'},
+ cr:{n:'CRISPR-Cas',b:3,t:2,q:['bio','res','cap'],d:'Never lose cells on Phage hotspots.'},
+ spore:{n:'Endospores',b:3,t:3,q:['pers','bio'],d:'Once per game: when wiped out, respawn as a 2×2 colony.'},
+ mbio:{n:'Mature biofilm',b:3,t:4,q:['spore','pers'],d:'Your cells with 3+ friendly neighbours cannot be invaded.'},
+ compt:{n:'Natural competence',b:4,t:1,q:[],d:'+1 mutation offer; Free DNA lets you choose (3 options).'},
+ mutr:{n:'Mutator (mutS⁻)',b:4,t:1,q:[],d:'All mutations cost 1 less, but you lose 1 random cell each round.'},
+ conj:{n:'Conjugation',b:4,t:2,q:['compt','mutr'],d:'Once per turn, 3 ATP: copy a trait from an enemy you touch.'},
+ integ:{n:'Integron',b:4,t:3,q:['conj'],d:'Gain a free random trait at every antibiotic wave.'}};
+const SPECIES=[
+ {id:'eco',n:'Escherichia coli',a:[['Lab workhorse','Starts with Lac operon.'],['F plasmid','Can conjugate from turn 1, for 2 ATP.']],start:['lac'],f:{conjFree:1}},
+ {id:'bsu',n:'Bacillus subtilis',a:[['Sporulation','Starts with Endospores.'],['Competent','Starts with Natural competence.']],start:['spore','compt'],f:{}},
+ {id:'pae',n:'Pseudomonas aeruginosa',a:[['Biofilm former','Starts with Biofilm.'],['Pyoverdine','Starts with Siderophores; Iron gives +1 extra.']],start:['bio','sid'],f:{feBonus:1}},
+ {id:'vch',n:'Vibrio cholerae',a:[['Polar flagellum','Starts with Flagella.'],['T6SS','First invasion each turn costs 1 less.']],start:['mot'],f:{t6lite:1}},
+ {id:'sco',n:'Streptomyces coelicolor',a:[['Antibiotic factory','Starts with Antibiotic production (aim waves, immune).'],['Slow hyphae','Base income −1.']],start:['abx'],f:{base:-1}},
+ {id:'sau',n:'Staphylococcus aureus',a:[['MRSA','Starts with Resistance + Compensatory mutation.'],['α-toxin','Starts with Bacteriocin.']],start:['res','comp','tox'],f:{base:-1}},
+ {id:'mtb',n:'Mycobacterium tuberculosis',a:[['Waxy mycolic wall','Enemies pay +2 to invade you; waves kill only ~50% of your cells; immune to H₂O₂.'],['Slow growth','Base income −1.']],start:[],f:{wax:1,base:-1}},
+ {id:'mxa',n:'Myxococcus xanthus',a:[['Social predator','Starts with Predatory lifestyle.'],['Gliding','Starts with Twitching.']],start:['pred','twi'],f:{base:-1}},
+ {id:'ana',n:'Anabaena (cyanobacterium)',a:[['Photosynthesis','+1 ATP per 5 cells you own.'],['Heterocysts (N₂ fixation)','+1 base income, but Glucose gives only +1.']],start:[],f:{photo:1,base:1,glu1:1}},
+ {id:'lbc',n:'Lactobacillus',a:[['Dairy specialist','Starts with Lac operon.'],['Lactic acid','Starts with H₂O₂-style killing: 1 enemy neighbour dies each turn.']],start:['lac','h2o2'],f:{base:-1}}];
+const SPI=Object.fromEntries(SPECIES.map(s=>[s.id,s]));
+const AUTO={2:12,3:14,4:16,5:18,6:20,7:22,8:24,9:26,10:28};
+
+/* ---------------- config & state ---------------- */
+let cfg={n:4,shape:'Circle',size:'Auto',custom:22,rounds:20,mode:'Random offers',diff:'Normal',seats:[]};
+function ensureSeats(){while(cfg.seats.length<10)cfg.seats.push({human:cfg.seats.length===0,sp:'random'})}ensureSeats();
+let S=null;
+const log=s=>{S.log.unshift(s);S.log.length=Math.min(S.log.length,40)};
+const NN=()=>S.N;
+const nb4=i=>{const n=S.N,r=i/n|0,c=i%n,o=[];if(r>0)o.push(i-n);if(r<n-1)o.push(i+n);if(c>0)o.push(i-1);if(c<n-1)o.push(i+1);return o.filter(j=>S.land[j])};
+const has=(p,k)=>S.players[p].tr.has(k),fl=(p,f)=>S.players[p].sp.f[f]||0;
+const count=p=>{let k=0;for(const o of S.grid)if(o===p)k++;return k};
+const gluOwned=p=>{let k=0;S.grid.forEach((o,i)=>{if(o===p&&S.tile[i]==='glu')k++});return k};
+function tileVal(p,k,g){switch(k){case'glu':return fl(p,'glu1')?1:has(p,'pts')?3:2;case'lac':return has(p,'lac')?(g>=3&&!has(p,'crp')?1:2):0;case'fe':return has(p,'sid')?3+fl(p,'feBonus'):0;case'o2':return has(p,'aero')?3:1;case'phg':return 2}return 0}
+function incomeParts(p){const cells=count(p),g=gluOwned(p);let tiles=0;S.grid.forEach((o,i)=>{if(o===p&&S.tile[i])tiles+=tileVal(p,S.tile[i],g)});
+ const a=[['base',3+fl(p,'base')],['colony',cells/10|0],['tiles',tiles]];if(has(p,'fast'))a.push(['rapid div.',2]);if(has(p,'qs'))a.push(['quorum',cells/8|0]);if(fl(p,'photo'))a.push(['photosynth.',cells/5|0]);if(has(p,'res')&&!has(p,'comp'))a.push(['resist. cost',-1]);return a}
+const income=p=>Math.max(1,incomeParts(p).reduce((s,x)=>s+x[1],0)),capOf=p=>has(p,'stor')?35:20;
+function reachSet(p){const n=S.N,d=has(p,'swarm')?3:has(p,'mot')?2:1,cheb=has(p,'twi'),out=new Set();
+ S.grid.forEach((o,i)=>{if(o!==p)return;const r=i/n|0,c=i%n;for(let a=-d;a<=d;a++)for(let b=-d;b<=d;b++){if((cheb?Math.max(Math.abs(a),Math.abs(b)):Math.abs(a)+Math.abs(b))>d)continue;const rr=r+a,cc=c+b;if(rr<0||cc<0||rr>=n||cc>=n)continue;const j=rr*n+cc;if(S.land[j]&&S.grid[j]===-1)out.add(j)}});return out}
+const growCost=(p,i)=>has(p,'chemo')&&S.tile[i]?0:1;
+const ownNb=(p,i)=>nb4(i).filter(j=>S.grid[j]===p).length;
+function invCost(p,i){const o=S.grid[i];if(o<0||o===p||!S.players[o].alive)return null;if(!nb4(i).some(j=>S.grid[j]===p))return null;if(has(o,'mbio')&&ownNb(o,i)>=3)return null;
+ const P=S.players[p];if(has(p,'t6')&&P.inv===0)return 0;const pr=has(p,'prot');
+ return Math.max(1,3-(has(p,'tox')?1:0)-(fl(p,'t6lite')&&P.inv===0?1:0)+(has(o,'bio')&&!pr?2:0)+(has(o,'cap')&&!pr?1:0)+(fl(o,'wax')?2:0))}
+const canDisp=p=>has(p,'disp')&&!S.players[p].disp&&S.players[p].atp>=3;
+const traitCost=(p,k)=>Math.max(1,TC[TREE[k].t]-(has(p,'mutr')?1:0));
+const mutCost=p=>Math.max(1,4+(S.players[p].bought/3|0)-(has(p,'mutr')?1:0));
+const nOffers=p=>3+(has(p,'compt')?1:0);
+const unlockable=p=>Object.keys(TREE).filter(k=>!has(p,k)&&(TREE[k].q.length===0||TREE[k].q.some(x=>has(p,x))));
+function touching(p){const s=new Set();S.grid.forEach((o,i)=>{if(o===p)for(const j of nb4(i)){const q=S.grid[j];if(q>=0&&q!==p)s.add(q)}});return[...s]}
+const conjCost=p=>fl(p,'conjFree')?2:3;
+function conjList(p){const s=new Set();for(const q of touching(p))for(const k of S.players[q].tr)if(!has(p,k))s.add(k);return[...s]}
+const canConj=p=>(has(p,'conj')||fl(p,'conjFree'))&&!S.players[p].conjUsed&&S.players[p].atp>=conjCost(p)&&conjList(p).length>0;
+const immune=o=>has(o,'abx')||has(o,'res'),halfWave=o=>has(o,'pers')||fl(o,'wax');
+const inBand=i=>{const v=S.band.ax==='r'?(i/S.N|0):i%S.N;return v>=S.band.st&&v<S.band.st+S.band.w};
+const warnOn=()=>S.round>=S.bandRound-1;
+const humansAlive=()=>S.players.some(p=>p.human&&p.alive);
+
+/* ---------------- setup ---------------- */
+function newGame(){const n=cfg.n;let N=cfg.size==='Custom'?Math.max(8,Math.min(40,cfg.custom|0||AUTO[n])):AUTO[n];
+ const c0=(N-1)/2,land=Array(N*N).fill(true);if(cfg.shape==='Circle')for(let i=0;i<N*N;i++){const r=i/N|0,c=i%N;land[i]=(r-c0)**2+(c-c0)**2<=(N/2)**2}
+ const grid=Array(N*N).fill(-1),tile=Array(N*N).fill(null),players=[];
+ const free=shuf(SPECIES.map(s=>s.id).filter(id=>!cfg.seats.slice(0,n).some(s=>s.sp===id)));
+ const ok=(r,c)=>r>=0&&c>=0&&r<N-1&&c<N-1&&[0,1,N,N+1].every(o=>land[r*N+c+o]&&grid[r*N+c+o]<0);
+ const off=Math.random()*6.283;let hn=0;
+ for(let i=0;i<n;i++){const st=cfg.seats[i],a=off+6.283*i/n,tr=c0+.36*N*Math.sin(a),tc=c0+.36*N*Math.cos(a);let best=null,bd=1e9;
+  for(let r=0;r<N-1;r++)for(let c=0;c<N-1;c++)if(ok(r,c)){const d=(r-tr)**2+(c-tc)**2;if(d<bd){bd=d;best=[r,c]}}
+  if(best)[0,1,N,N+1].forEach(o=>grid[best[0]*N+best[1]+o]=i);
+  const sp=SPI[st.sp==='random'?(free.pop()||pick(SPECIES).id):st.sp];
+  if(st.human)hn++;
+  players.push({name:st.human?(cfg.seats.slice(0,n).filter(s=>s.human).length>1?`Player ${hn}`:'You'):`AI · ${FP[i].n}`,fp:FP[i].n,col:FP[i].c,human:st.human,sp,atp:0,tr:new Set(sp.start),bought:0,alive:!!best,spored:false,inv:0,pred:0,disp:false,conjUsed:false})}
+ const L=land.reduce((a,x)=>a+x,0);for(const[k,f]of TFREQ){let m=Math.max(1,Math.round(L*f)),g=0;while(m>0&&g++<20000){const x=RN(N*N);if(land[x]&&grid[x]<0&&!tile[x]&&!nb4c(x,N,grid)){tile[x]=k;m--}}}
+ S={N,land,grid,tile,players,turn:0,round:1,bandRound:4,band:null,offer:null,aim:false,log:[],over:false,L};
+ newBand();closeModal();G.build();log(`🧫 New dish: ${N}×${N} ${cfg.shape.toLowerCase()}, ${n} strains.`);startTurn()}
+function nb4c(x,N,grid){const r=x/N|0,c=x%N;for(const[a,b]of[[0,0],[1,0],[-1,0],[0,1],[0,-1]]){const rr=r+a,cc=c+b;if(rr>=0&&cc>=0&&rr<N&&cc<N&&grid[rr*N+cc]>=0)return true}return false}
+function newBand(){const w=Math.max(2,Math.round(S.N/5));S.band={ax:RN(2)?'r':'c',w,st:RN(S.N-w+1)}}
+
+/* ---------------- core rules ---------------- */
+function gain(p,k,why){if(has(p,k))return;S.players[p].tr.add(k);log(`🧬 <b style="color:${S.players[p].col}">${esc(S.players[p].name)}</b> ${why}: ${TREE[k].n}`)}
+function take(p,i){const o=S.grid[i];S.grid[i]=p;
+ if(S.tile[i]==='dna'){S.tile[i]=null;G.props();const u=unlockable(p);if(u.length){if(has(p,'compt')){const opts=shuf(u).slice(0,3);if(S.players[p].human){S.offer={kind:'dna',list:opts}}else gain(p,opts.sort((a,b)=>traitVal(p,b)-traitVal(p,a))[0],'took up free DNA')}else gain(p,pick(u),'took up free DNA')}}
+ if(o>=0)checkDeath(o)}
+function checkDeath(o){const P=S.players[o];if(!P.alive||count(o)>0)return;
+ if(has(o,'spore')&&!P.spored){P.spored=true;const n=S.N;for(let g=0;g<4000;g++){const r=RN(n-1),c=RN(n-1),cs=[0,1,n,n+1].map(x=>r*n+c+x);if(cs.every(j=>S.land[j]&&S.grid[j]<0)){cs.forEach(j=>S.grid[j]=o);log(`🦠 <b style="color:${P.col}">${esc(P.name)}</b>'s endospores germinate!`);return}}}
+ P.alive=false;log(`☠ <b style="color:${P.col}">${esc(P.name)}</b> is wiped out.`)}
+function act(p,i){const P=S.players[p];if(S.grid[i]===p||!S.land[i])return false;
+ if(S.grid[i]===-1&&reachSet(p).has(i)){const c=growCost(p,i);if(P.atp<c)return false;P.atp-=c;take(p,i);return true}
+ const c=invCost(p,i);if(c!=null){if(P.atp<c)return false;P.atp-=c;P.inv++;if(has(p,'pred')&&P.pred<3){P.atp++;P.pred++}take(p,i);return true}
+ if(S.grid[i]===-1&&canDisp(p)){P.atp-=3;P.disp=true;take(p,i);return true}return false}
+function actionCost(p,i){if(S.grid[i]===-1&&reachSet(p).has(i))return{k:'grow',c:growCost(p,i)};const c=invCost(p,i);if(c!=null)return{k:'invade',c};if(S.grid[i]===-1&&S.land[i]&&canDisp(p))return{k:'disperse',c:3};return null}
+function startTurn(){const p=S.turn,P=S.players[p];P.inv=0;P.pred=0;P.disp=false;P.conjUsed=false;S.offer=null;S.aim=false;
+ if(has(p,'h2o2')){const c=[];S.grid.forEach((o,i)=>{if(o>=0&&o!==p&&!has(o,'cap')&&!fl(o,'wax')&&nb4(i).some(j=>S.grid[j]===p))c.push(i)});if(c.length){const i=pick(c),o=S.grid[i];S.grid[i]=-1;log(`🧪 <b style="color:${P.col}">${esc(P.name)}</b> poisons a <span style="color:${S.players[o].col}">${esc(S.players[o].name)}</span> cell.`);checkDeath(o)}}
+ P.atp=Math.min(capOf(p),P.atp+income(p));render();
+ if(!P.human)setTimeout(aiTurn,Math.max(180,520-S.players.length*30));else if(S.players.filter(q=>q.human).length>1)banner(`${P.name} · ${P.fp}`,P.col)}
+function nextTurn(){if(S.over)return;if(S.players.filter(p=>p.alive).length<=1)return end();let t=S.turn,g=0;
+ do{t=(t+1)%S.players.length;if(t===0){S.round++;roundStart();if(S.over)return}}while(!S.players[t].alive&&g++<50);S.turn=t;startTurn()}
+function roundStart(){
+ if(S.round===S.bandRound){let k=0;S.grid.forEach((o,i)=>{if(o<0||!inBand(i)||immune(o))return;if(halfWave(o)&&Math.random()<.5)return;S.grid[i]=-1;k++});
+  log(`💊 <span class="warn">Antibiotic wave!</span> ${k} cells killed.`);G.flash();
+  S.players.forEach((P,p)=>{if(P.alive&&has(p,'integ')){const u=unlockable(p);if(u.length)gain(p,pick(u),'integron captured')}});
+  S.bandRound+=4;newBand();S.players.forEach((_,i)=>checkDeath(i))}
+ S.players.forEach((P,p)=>{if(P.alive&&has(p,'mutr')&&count(p)>3){const c=[];S.grid.forEach((o,i)=>{if(o===p)c.push(i)});S.grid[pick(c)]=-1}});
+ S.grid.forEach((o,i)=>{if(o>=0&&S.tile[i]==='phg'&&!has(o,'cr')&&Math.random()<.25){S.grid[i]=-1;log(`☣ Phage lyses a <span style="color:${S.players[o].col}">${esc(S.players[o].name)}</span> cell.`);checkDeath(o)}});
+ if(S.round>cfg.rounds||S.players.filter(p=>p.alive).length<=1||!humansAlive())end()}
+function end(){if(S.over)return;S.over=true;render();setTimeout(showEnd,500)}
+function checkWinNow(p){if(count(p)*2>=S.L){log(`🏁 <b style="color:${S.players[p].col}">${esc(S.players[p].name)}</b> holds half the dish!`);end();return true}if(S.players.filter(x=>x.alive).length<=1){end();return true}return false}
+function aimAt(p,i){const n=S.N,v=S.band.ax==='r'?(i/n|0):i%n;S.band.st=Math.max(0,Math.min(n-S.band.w,v-(S.band.w>>1)))}
+
+/* ---------------- AI ---------------- */
+function aiCtx(p){const n=S.N,dist=new Int16Array(n*n).fill(999),q=[];S.grid.forEach((o,i)=>{if(o===p){dist[i]=0;q.push(i)}});
+ for(let h=0;h<q.length;h++){const i=q[h];if(dist[i]>=5)continue;for(const j of nb4(i))if(dist[j]>dist[i]+1){dist[j]=dist[i]+1;q.push(j)}}
+ const own={},near={};S.grid.forEach((o,i)=>{const k=S.tile[i];if(!k)return;if(o===p)own[k]=(own[k]||0)+1;else if(o===-1&&dist[i]<=4)near[k]=(near[k]||0)+1});
+ let border=0;S.grid.forEach((o,i)=>{if(o===p&&nb4(i).some(j=>S.grid[j]>=0&&S.grid[j]!==p))border++});
+ const cnts=S.players.map((_,i)=>count(i)),alive=cnts.filter((c,i)=>S.players[i].alive),avg=alive.reduce((a,b)=>a+b,0)/Math.max(1,alive.length);
+ let leader=-1,lc=-1;cnts.forEach((c,i)=>{if(i!==p&&S.players[i].alive&&c>lc){lc=c;leader=i}});
+ return{own,near,border,cells:cnts[p],leader,leaderGap:lc>avg*1.25,left:Math.max(1,cfg.rounds-S.round+1),waves:Math.max(0,Math.floor((cfg.rounds-S.bandRound)/4)+1),g:gluOwned(p)}}
+let CTX=null;
+function traitVal(p,k,c=CTX||aiCtx(p)){const L=c.left*.6,o=t=>(c.own[t]||0),nr=t=>(c.near[t]||0)*.5,bandHit=c.cells*S.band.w/S.N;
+ const enemyBio=touching(p).some(q=>has(q,'bio')||has(q,'cap'));
+ const v={lac:(o('lac')+nr('lac'))*(c.g>=3?1:2)*L,sid:(o('fe')+nr('fe'))*3*L,pts:(o('glu')+nr('glu'))*L,crp:has(p,'lac')&&c.g>=3?o('lac')*L:.5,aero:(o('o2')+nr('o2'))*2*L,fast:2*L,qs:c.cells/8*L,stor:has(p,'fast')?3:1,
+  tox:c.border?Math.min(c.border,4)*.5*L:1,prot:enemyBio?2*L*.5:.4,h2o2:c.border?1.2*c.left:.3,t6:c.border?2.5*L:.5,pred:c.border?1.5*L:.5,abx:c.waves*(bandHit*1.5+3),
+  mot:3+(c.left>8?2:0),twi:2.5,chemo:(o('glu')+nr('glu')+nr('lac')+nr('fe')+nr('o2'))*.6+1,swarm:3,disp:c.left>5?4:1,
+  bio:c.border*.12*c.left+1,cap:c.border*.07*c.left+.5,res:c.waves*bandHit*(warnOn()?2:1)-(c.left*.6),comp:has(p,'res')?c.left*.6:0,pers:c.waves*bandHit*.5,cr:o('phg')*1.5*L*.4+.5,
+  spore:c.cells<12?5:2,mbio:c.border*.1*c.left,compt:2,mutr:c.left>8?1:0,conj:conjList(p).length*1.2,integ:c.waves*4}[k];
+ return(v||1)}
+function aiTraits(p,lv){const P=S.players[p];if(lv===0&&Math.random()<.65)return 0;let reserve=0;const cap=capOf(p),keep=c=>P.atp>=cap-3||P.atp-c>=(lv===2?3:4);
+ for(let g=0;g<(lv===2&&P.atp>=cap-2?2:1);g++){const u=unlockable(p);if(!u.length)break;
+  if(cfg.mode==='Random offers'){const mc=mutCost(p);const top=u.map(k=>traitVal(p,k)).sort((a,b)=>b-a).slice(0,3),avg=top.reduce((a,b)=>a+b,0)/Math.max(1,top.length);
+   const want=lv===2?avg>=mc*1.2:P.atp>=mc+2&&Math.random()<.6;if(P.atp>=mc&&want&&keep(mc)){const off=shuf(u).slice(0,nOffers(p));P.atp-=mc;P.bought++;gain(p,off.sort((a,b)=>traitVal(p,b)-traitVal(p,a))[0],'mutated')}else{if(lv===2&&!(P.atp>=mc)&&avg>=mc*2)reserve=Math.max(0,mc-income(p));break}}
+  else{const sc=u.map(k=>({k,c:traitCost(p,k),v:traitVal(p,k)})).map(x=>({...x,r:x.v/x.c})).sort((a,b)=>b.r-a.r);const thr=lv===2?1:1.3,b=sc[0];
+   if(b.r<thr)break;if(P.atp>=b.c&&keep(b.c)){P.atp-=b.c;P.bought++;gain(p,b.k,'evolved')}else{if(lv===2&&b.r>2)reserve=Math.max(0,b.c-income(p));break}}}
+ return reserve}
+function aiMoveVal(p,i,kind,c,lv,cnts){const k=S.tile[i],P=S.players[p];let w=1+.05*c.left;
+ if(k)w+=tileVal(p,k,c.g)*c.left*.6*(k==='phg'&&!has(p,'cr')?.55:1)+(k==='dna'?5:0)+((k==='lac'&&!has(p,'lac'))||(k==='fe'&&!has(p,'sid'))?c.left*.12:0);
+ if(lv>=1){w+=.3*ownNb(p,i);if(lv===2)w-=.15*nb4(i).filter(j=>S.grid[j]>=0&&S.grid[j]!==p).length}
+ if(warnOn()&&S.round===S.bandRound-1&&inBand(i)&&!immune(p))w*=halfWave(p)?.5:.12;
+ if(kind==='invade'){const o=S.grid[i];let rel=lv===2&&o===c.leader&&c.leaderGap?1.3:.6;if(lv===0)rel=.3;w+=rel*(1+(k?tileVal(o,k,0)*c.left*.3:0));if(cnts[o]<=4)w+=3}
+ return w}
+function aiTurn(){if(S.over)return;const p=S.turn,P=S.players[p];if(P.human)return;const lv=cfg.diff==='Easy'?0:cfg.diff==='Hard'?2:1;
+ CTX=aiCtx(p);
+ if(has(p,'abx')){let best=null,bv=-1e9;for(const ax of['r','c'])for(let st=0;st<=S.N-S.band.w;st++){let v=0;S.grid.forEach((o,i)=>{if(o<0||o===p||immune(o))return;const x=ax==='r'?(i/S.N|0):i%S.N;if(x>=st&&x<st+S.band.w)v+=(o===CTX.leader?1.5:1)*(halfWave(o)?.5:1)});if(v>bv){bv=v;best={ax,st}}}if(best){S.band.ax=best.ax;S.band.st=best.st}}
+ const reserve=aiTraits(p,lv);
+ if(canConj(p)&&lv>0){const l=conjList(p).sort((a,b)=>traitVal(p,b)-traitVal(p,a));if(traitVal(p,l[0])>conjCost(p)*1.2){P.atp-=conjCost(p);P.conjUsed=true;gain(p,l[0],'conjugated')}}
+ for(let g=0;g<150&&!S.over;g++){CTX.g=gluOwned(p);const cnts=S.players.map((_,q)=>count(q)),budget=P.atp-reserve;let best=null,br=-1e9;
+  const tryI=(i,kind,cost)=>{if(cost>budget)return;const v=aiMoveVal(p,i,kind,CTX,lv,cnts),r=v/Math.max(cost,.35)+(lv===0?Math.random()*2:Math.random()*.25);if(r>br){br=r;best=i}};
+  reachSet(p).forEach(i=>tryI(i,'grow',growCost(p,i)));
+  S.grid.forEach((o,i)=>{if(o>=0&&o!==p){const c=invCost(p,i);if(c!=null)tryI(i,'invade',c)}});
+  if(canDisp(p)&&lv>0){S.grid.forEach((o,i)=>{if(o===-1&&S.land[i]&&S.tile[i]&&S.tile[i]!=='phg')tryI(i,'disperse',3)})}
+  if(best==null)break;if(!act(p,best))break;if(checkWinNow(p))return}
+ CTX=null;if(S.over)return;render();setTimeout(nextTurn,320)}
+
+/* ---------------- 3D ---------------- */
+const G=(()=>{if(!window.THREE)return null;
+ const el=$('#stage'),renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));el.appendChild(renderer.domElement);
+ const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(40,1,.1,600);
+ scene.add(new THREE.HemisphereLight(0x9fd8ff,0x05100e,.55));const dl=new THREE.DirectionalLight(0xffffff,.85);dl.position.set(-12,30,14);scene.add(dl);
+ const cam={th:.55,ph:.78,r:30,t:new THREE.Vector3()};
+ let grp=null,colony,halo,tiles,markers,hover,band,bandEdge,LAND=[],LI=null,disp=[],sc=[],ht=[],props={},flashT=0,c0=0;
+ const tmpM=new THREE.Matrix4(),tmpQ=new THREE.Quaternion(),tmpS=new THREE.Vector3(),tmpP=new THREE.Vector3(),col=new THREE.Color();
+ const emis=m=>{m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('vec3 totalEmissiveRadiance = emissive;','vec3 totalEmissiveRadiance = emissive * vColor;')};return m};
+ const P3=i=>[(i%S.N)-c0,((i/S.N)|0)-c0];
+ const GEO={hex:new THREE.CylinderGeometry(.19,.19,.07,6),oct:new THREE.OctahedronGeometry(.17),bub:new THREE.SphereGeometry(.15,16,12),ico:new THREE.IcosahedronGeometry(.12),tail:new THREE.CylinderGeometry(.025,.025,.2,6),leg:new THREE.CylinderGeometry(.012,.012,.16,4),bead:new THREE.SphereGeometry(.034,8,6)};
+ const MAT={glu:new THREE.MeshStandardMaterial({color:0xffc94a,emissive:0xb27a00,emissiveIntensity:.7,roughness:.3}),lac:new THREE.MeshStandardMaterial({color:0xfff0c8,emissive:0x8a7340,emissiveIntensity:.6,roughness:.3}),
+  fe:new THREE.MeshStandardMaterial({color:0xc8d4e2,metalness:.9,roughness:.25,emissive:0x223040}),o2:new THREE.MeshStandardMaterial({color:0x9ff0ff,emissive:0x1aa6c8,emissiveIntensity:.6,transparent:true,opacity:.6,roughness:.1}),
+  phg:new THREE.MeshStandardMaterial({color:0xff5566,emissive:0xb0102a,emissiveIntensity:.8,roughness:.4}),dna:new THREE.MeshStandardMaterial({color:0xd6a8ff,emissive:0x7a2cd0,emissiveIntensity:.9})};
+ function mkProp(k){const g=new THREE.Group();
+  if(k==='glu')g.add(new THREE.Mesh(GEO.hex,MAT.glu));
+  else if(k==='lac'){const a=new THREE.Mesh(GEO.hex,MAT.lac),b=new THREE.Mesh(GEO.hex,MAT.lac);a.position.x=-.15;b.position.x=.17;b.position.y=.02;g.add(a,b)}
+  else if(k==='fe')g.add(new THREE.Mesh(GEO.oct,MAT.fe));
+  else if(k==='o2'){const a=new THREE.Mesh(GEO.bub,MAT.o2),b=new THREE.Mesh(GEO.bub,MAT.o2);b.scale.setScalar(.55);b.position.set(.16,.1,.05);g.add(a,b)}
+  else if(k==='phg'){const h=new THREE.Mesh(GEO.ico,MAT.phg);h.position.y=.16;const t=new THREE.Mesh(GEO.tail,MAT.phg);g.add(h,t);for(let j=0;j<3;j++){const l=new THREE.Mesh(GEO.leg,MAT.phg);l.position.set(Math.cos(j*2.1)*.07,-.12,Math.sin(j*2.1)*.07);l.rotation.z=Math.cos(j*2.1)*.7;l.rotation.x=-Math.sin(j*2.1)*.7;g.add(l)}}
+  else if(k==='dna'){for(let j=0;j<12;j++){const a=j*.55,y=-.18+j*.033;for(const s of[0,Math.PI]){const b=new THREE.Mesh(GEO.bead,MAT.dna);b.position.set(Math.cos(a+s)*.09,y,Math.sin(a+s)*.09);g.add(b)}}}
+  return g}
+ function build(){if(grp){scene.remove(grp);grp.traverse(o=>{if(o.geometry&&!Object.values(GEO).includes(o.geometry))o.geometry.dispose()})}
+  grp=new THREE.Group();scene.add(grp);const N=S.N;c0=(N-1)/2;LAND=[];LI=new Int32Array(N*N).fill(-1);S.land.forEach((l,i)=>{if(l){LI[i]=LAND.length;LAND.push(i)}});
+  const agar=new THREE.MeshStandardMaterial({color:0x0d2422,roughness:.55,emissive:0x041312}),glass=new THREE.MeshStandardMaterial({color:0xaee6ff,transparent:true,opacity:.13,roughness:.05,side:THREE.DoubleSide,depthWrite:false}),
+   rim=new THREE.MeshBasicMaterial({color:0x7fe7ff,transparent:true,opacity:.35});
+  if(cfg.shape==='Circle'){const R=N/2+.75;const d=new THREE.Mesh(new THREE.CylinderGeometry(R,R,.5,96),agar);d.position.y=-.25;grp.add(d);
+   const w=new THREE.Mesh(new THREE.CylinderGeometry(R+.15,R+.15,1.1,96,1,true),glass);w.position.y=.3;grp.add(w);const t=new THREE.Mesh(new THREE.TorusGeometry(R+.15,.04,8,160),rim);t.rotation.x=Math.PI/2;t.position.y=.85;grp.add(t);
+   const b=new THREE.Mesh(new THREE.CylinderGeometry(R+.25,R+.25,.12,96),glass);b.position.y=-.56;grp.add(b)}
+  else{const W=N+1.3;const d=new THREE.Mesh(new THREE.BoxGeometry(W,.5,W),agar);d.position.y=-.25;grp.add(d);
+   for(const[x,z,sx,sz]of[[0,W/2,W+.2,.08],[0,-W/2,W+.2,.08],[W/2,0,.08,W+.2],[-W/2,0,.08,W+.2]]){const m=new THREE.Mesh(new THREE.BoxGeometry(sx,1.1,sz),glass);m.position.set(x,.3,z);grp.add(m);const e=new THREE.Mesh(new THREE.BoxGeometry(sx,.05,sz),rim);e.position.set(x,.86,z);grp.add(e)}}
+  tiles=new THREE.InstancedMesh(new THREE.BoxGeometry(.9,.05,.9),new THREE.MeshStandardMaterial({color:0xffffff,roughness:.8}),LAND.length);
+  colony=new THREE.InstancedMesh(new THREE.SphereGeometry(.5,22,12,0,Math.PI*2,0,Math.PI/2),emis(new THREE.MeshStandardMaterial({color:0xffffff,roughness:.32,emissive:0x8a8a8a})),LAND.length);
+  halo=new THREE.InstancedMesh(new THREE.CircleGeometry(.8,24),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.28,blending:THREE.AdditiveBlending,depthWrite:false}),LAND.length);
+  disp=new Array(LAND.length).fill(-1);sc=new Float32Array(LAND.length);ht=new Float32Array(LAND.length).fill(.4);
+  LAND.forEach((i,k)=>{const[x,z]=P3(i);tmpM.makeTranslation(x,.025,z);tiles.setMatrixAt(k,tmpM);tiles.setColorAt(k,col.set(((i%N)+((i/N)|0))%2?0x123230:0x0f2c2a));colony.setColorAt(k,col.set(0xffffff));halo.setColorAt(k,col.set(0x000000));tmpM.makeScale(0,0,0);colony.setMatrixAt(k,tmpM);halo.setMatrixAt(k,tmpM)});
+  grp.add(tiles,colony,halo);
+  markers=new THREE.InstancedMesh(new THREE.RingGeometry(.3,.42,28),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}),LAND.length);markers.count=0;markers.setColorAt(0,col.set(0xffffff));grp.add(markers);
+  hover=new THREE.Mesh(new THREE.RingGeometry(.4,.5,32),new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide,transparent:true,opacity:.95,depthWrite:false}));hover.rotation.x=-Math.PI/2;hover.visible=false;grp.add(hover);
+  band=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshBasicMaterial({color:0xff3355,transparent:true,opacity:.18,depthWrite:false}));band.visible=false;grp.add(band);
+  bandEdge=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1)),new THREE.LineBasicMaterial({color:0xff6b80,transparent:true,opacity:.8}));band.add(bandEdge);
+  props={};buildProps();cam.r=(N*1.25+6)*Math.max(1,1.35/camera.aspect);cam.t.set(0,0,0);sync()}
+ function buildProps(){for(const k in props)grp.remove(props[k]);props={};S.tile.forEach((k,i)=>{if(!k||!S.land[i])return;const g=mkProp(k),[x,z]=P3(i);g.position.set(x,.3,z);g.userData={k,ph:Math.random()*6};grp.add(g);props[i]=g})}
+ function sync(){if(!grp)return;const N=S.N;
+  LAND.forEach((i,k)=>{const o=S.grid[i];if(o>=0){const nn=nb4(i).filter(j=>S.grid[j]===o).length;ht[k]=.3+nn*.07}});
+  const cur=S.players[S.turn],my=cur&&cur.human&&!S.over&&!S.offer;let m=0;
+  if(my&&!S.aim){const p=S.turn,rs=reachSet(p);const put=(i,c)=>{const[x,z]=P3(i);const y=S.grid[i]>=0?.82:.07;tmpM.compose(tmpP.set(x,y,z),tmpQ.setFromAxisAngle(tmpS.set(1,0,0),-Math.PI/2),tmpS.set(1,1,1));markers.setMatrixAt(m,tmpM);markers.setColorAt(m,col.set(c));m++};
+   rs.forEach(i=>put(i,cur.col));S.grid.forEach((o,i)=>{if(o>=0&&o!==p&&invCost(p,i)!=null)put(i,0xff4d5e)})}
+  markers.count=m;markers.instanceMatrix.needsUpdate=true;if(markers.instanceColor)markers.instanceColor.needsUpdate=true;
+  const w=warnOn()||S.aim;band.visible=w;if(w){const b=S.band,ext=N+.6;if(b.ax==='r'){band.scale.set(ext,1.4,b.w);band.position.set(0,.6,b.st+b.w/2-.5-c0)}else{band.scale.set(b.w,1.4,ext);band.position.set(b.st+b.w/2-.5-c0,.6,0)}}}
+ function flash(){flashT=1}
+ const ray=new THREE.Raycaster(),plane=new THREE.Plane(new THREE.Vector3(0,1,0),-.1),hit=new THREE.Vector3();
+ function pickCell(cx,cy){if(!S)return-1;const r=renderer.domElement.getBoundingClientRect();ray.setFromCamera({x:(cx-r.left)/r.width*2-1,y:-(cy-r.top)/r.height*2+1},camera);if(!ray.ray.intersectPlane(plane,hit))return-1;
+  const c=Math.round(hit.x+c0),rr=Math.round(hit.z+c0);if(c<0||rr<0||c>=S.N||rr>=S.N)return-1;const i=rr*S.N+c;return S.land[i]?i:-1}
+ function setHover(i){if(!hover)return;if(i<0){hover.visible=false;return}const[x,z]=P3(i);hover.visible=true;hover.position.set(x,S.grid[i]>=0?.84:.09,z)}
+ function resize(){const w=el.clientWidth,h=el.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
+ addEventListener('resize',resize);resize();
+ let last=0;function loop(t){requestAnimationFrame(loop);const dt=Math.min(.05,(t-last)/1000||0);last=t;
+  const sp=Math.sin,ph=cam.ph,th=cam.th;camera.position.set(cam.t.x+cam.r*Math.sin(ph)*Math.sin(th),cam.t.y+cam.r*Math.cos(ph),cam.t.z+cam.r*Math.sin(ph)*Math.cos(th));camera.lookAt(cam.t);
+  if(grp&&S){let dirty=false;
+   for(let k=0;k<LAND.length;k++){const i=LAND[k],want=S.grid[i];let tgt=want>=0?1:0;
+    if(disp[k]!==want){if(sc[k]>.04)tgt=0;else{disp[k]=want;if(want>=0){const c=S.players[want].col;colony.setColorAt(k,col.set(c));halo.setColorAt(k,col.set(c));dirty=true}}}
+    const ns=sc[k]+(tgt-sc[k])*Math.min(1,dt*9);if(Math.abs(ns-sc[k])>1e-4||ns>.01){sc[k]=ns<.003&&tgt===0?0:ns;const[x,z]=P3(i),br=1+.035*sp(t/700+k*.7),s=sc[k];
+     tmpM.compose(tmpP.set(x,.05,z),tmpQ.identity(),tmpS.set(.88*s,ht[k]*2*s*br,.88*s));colony.setMatrixAt(k,tmpM);
+     tmpM.compose(tmpP.set(x,.06,z),tmpQ.setFromAxisAngle(tmpS.set(1,0,0),-Math.PI/2),tmpS.set(s,s,s));halo.setMatrixAt(k,tmpM);dirty=true}}
+   if(dirty){colony.instanceMatrix.needsUpdate=true;halo.instanceMatrix.needsUpdate=true;if(colony.instanceColor)colony.instanceColor.needsUpdate=true;if(halo.instanceColor)halo.instanceColor.needsUpdate=true}
+   for(const i in props){const g=props[i],u=g.userData,o=S.grid[i];const k=LI[i];const y=o>=0?.3+ht[k]*2*sc[k]+.22:.3;g.position.y+=(y+.04*sp(t/600+u.ph)-g.position.y)*Math.min(1,dt*6);g.rotation.y+=dt*.6}
+   if(band.visible){band.material.opacity=.14+.08*sp(t/300)+flashT*.6}
+   if(flashT>0){flashT=Math.max(0,flashT-dt*1.2);band.visible=true}
+   if(markers.count){const s=1+.08*sp(t/250);markers.scale.set(1,1,1);markers.material.opacity=.6+.3*sp(t/250)}}
+  renderer.render(scene,camera)}
+ requestAnimationFrame(loop);
+ // camera controls
+ const cv=renderer.domElement,ptrs=new Map();let down=null,moved=false,pinch=0;
+ cv.addEventListener('contextmenu',e=>e.preventDefault());
+ cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});down={x:e.clientX,y:e.clientY,b:e.button,sh:e.shiftKey};moved=false;if(ptrs.size===2){const[a,b]=[...ptrs.values()];pinch=Math.hypot(a.x-b.x,a.y-b.y)}});
+ cv.addEventListener('pointermove',e=>{const pr=ptrs.get(e.pointerId);
+  if(pr){const dx=e.clientX-pr.x,dy=e.clientY-pr.y;pr.x=e.clientX;pr.y=e.clientY;if(Math.hypot(e.clientX-down.x,e.clientY-down.y)>5)moved=true;
+   if(ptrs.size===2){const[a,b]=[...ptrs.values()],d=Math.hypot(a.x-b.x,a.y-b.y);if(pinch){cam.r=Math.max(6,Math.min(140,cam.r*pinch/d))}pinch=d}
+   else if(moved){if(down.b===2||down.sh){const k=cam.r/600,s=Math.sin(cam.th),c=Math.cos(cam.th);cam.t.x-=(dx*c+dy*s)*k*1.5;cam.t.z-=(-dx*s+dy*c)*k*1.5}else{cam.th-=dx*.006;cam.ph=Math.max(.12,Math.min(1.32,cam.ph-dy*.005))}}
+   tipHide()}else{const i=pickCell(e.clientX,e.clientY);setHover(i);UI.tip(i,e.clientX,e.clientY)}});
+ cv.addEventListener('pointerup',e=>{ptrs.delete(e.pointerId);if(ptrs.size<2)pinch=0;if(!moved&&down&&down.b===0&&ptrs.size===0){const i=pickCell(e.clientX,e.clientY);if(i>=0)UI.click(i)}down=null});
+ cv.addEventListener('pointerleave',()=>{setHover(-1);tipHide()});
+ cv.addEventListener('wheel',e=>{e.preventDefault();cam.r=Math.max(6,Math.min(140,cam.r*Math.pow(1.0012,e.deltaY)))},{passive:false});
+ function tipHide(){$('#tip').style.display='none'}
+ function proj(i){const[x,z]=P3(i);const v=new THREE.Vector3(x,.1,z).project(camera),r=renderer.domElement.getBoundingClientRect();return[r.left+(v.x+1)/2*r.width,r.top+(1-v.y)/2*r.height]}
+ return{build,sync,flash,props:()=>{if(grp)buildProps()},cam,proj}})();
+
+/* ---------------- UI ---------------- */
+let treeOpen=false;
+function banner(t,c){const b=$('#banner');b.textContent=t;b.style.color=c;b.style.opacity=1;clearTimeout(banner.t);banner.t=setTimeout(()=>b.style.opacity=0,1300)}
+function closeModal(){$('#modal').classList.remove('show')}
+function openModal(h){$('#mbox').innerHTML=h;$('#modal').classList.add('show')}
+const pc=p=>`<b style="color:${S.players[p].col}">${esc(S.players[p].name)}</b>`;
+function render(){if(!S)return;
+ const cur=S.players[S.turn],p=S.turn,w=warnOn();
+ $('#roundbox').innerHTML=`<span>Round <b>${Math.min(S.round,cfg.rounds)}</b><span class="mut">/${cfg.rounds}</span></span><span class="${w?'warn':''}">💊 wave ${w?'<b>next round</b> — red band':'in '+(S.bandRound-S.round)+' rounds'}</span>`;
+ const order=S.players.map((_,i)=>i).sort((a,b)=>count(b)-count(a));
+ $('#players').innerHTML=order.map(i=>{const P=S.players[i];return `<div class="pl ${i===p&&!S.over?'cur':''} ${P.alive?'':'dead'}"><span class="dot" style="background:${P.col};box-shadow:0 0 10px ${P.col}"></span><div><div class="nm">${esc(P.name)}</div><div class="sub"><i>${P.sp.n}</i> · +${income(i)}⚡ · ${P.tr.size} traits</div></div><div class="cells num">${count(i)}</div></div>`}).join('');
+ $('#log').innerHTML=S.log.slice(0,9).map(l=>`<div>${l}</div>`).join('');
+ const my=cur.human&&!S.over;
+ if(S.over){$('#bar').innerHTML=`<div class="who">Game over</div><div class="sp"></div><button class="btn pri" data-a="results">Results</button>`}
+ else if(!my){$('#bar').innerHTML=`<span class="dot" style="width:12px;height:12px;border-radius:50%;background:${cur.col};box-shadow:0 0 12px ${cur.col}"></span><div class="who">${esc(cur.name)}</div><div class="mut"><i>${cur.sp.n}</i> is growing…</div>`}
+ else{const parts=incomeParts(p).filter(x=>x[1]);
+  $('#bar').innerHTML=`<div><div class="who" style="color:${cur.col}">${cur.name==='You'?'Your turn':esc(cur.name)}</div><div class="mut" style="font-size:12px"><i>${cur.sp.n}</i></div></div>
+  <div class="atp num"><b style="color:${cur.col}">${cur.atp}</b><span class="mut">/ ${capOf(p)} ATP</span></div>
+  <div class="chips">${parts.map(x=>`<span class="chip">${x[0]} ${x[1]>0?'+':''}${x[1]}</span>`).join('')}</div><div class="sp"></div>
+  ${cfg.mode==='Random offers'?`<button class="btn" data-a="mut" ${cur.atp<mutCost(p)||!unlockable(p).length||S.offer?'disabled':''}>Mutate · ${mutCost(p)}⚡</button>`:`<button class="btn" data-a="tree">Evolve (tree)</button>`}
+  ${has(p,'conj')||fl(p,'conjFree')?`<button class="btn" data-a="conj" ${canConj(p)&&!S.offer?'':'disabled'}>Conjugate · ${conjCost(p)}⚡</button>`:''}
+  ${has(p,'abx')?`<button class="btn ${S.aim?'on':''}" data-a="aim">${S.aim?'Click the dish to aim':'Aim wave'}</button><button class="btn" data-a="rot">Rotate</button>`:''}
+  <button class="btn pri" data-a="end" ${S.offer?'disabled':''}>End turn <span style="opacity:.6">(E)</span></button>`}
+ const of=$('#offer');if(my&&S.offer){const t={mut:'Mutation — pick one',dna:'Free DNA — pick one',conj:'Conjugation — copy one'}[S.offer.kind];
+  of.innerHTML=`<div style="width:100%;text-align:center;font:600 15px 'Space Grotesk'">${t}</div>`+S.offer.list.map(k=>`<div class="card panel" data-a="pick" data-v="${k}"><div class="k">${BR[TREE[k].b]} · tier ${TREE[k].t}</div><b>${TREE[k].n}</b><div style="font-size:12.5px;color:#b9cbc8">${TREE[k].d}</div></div>`).join('')}else of.innerHTML='';
+ renderTree();G&&G.sync()}
+function renderTree(){if(!S){$('#tree').innerHTML='';return}const p=S.turn,P=S.players[p],my=P.human&&!S.over&&!S.offer,u=new Set(unlockable(p)),direct=cfg.mode==='Pick from tree';
+ $('#tree').innerHTML=`<div class="row"><div style="font:700 20px 'Space Grotesk'">Mutation tree — <span style="color:${P.col}">${esc(P.name)}</span></div><span class="mut">${direct?'Click a bright node to buy it.':`Random offers mode: Mutate (${mutCost(p)}⚡) offers ${nOffers(p)} random unlockable traits.`} Dashed = locked (needs one of the listed traits).</span><div class="sp"></div><button class="btn" data-a="tree">Close</button></div>
+ <div class="sprow">${P.sp.a.map(a=>`<span class="chip" style="border-color:${P.col}55"><b>${a[0]}</b> — ${a[1]}</span>`).join('')}</div>
+ <div class="tcols">${BR.map((b,bi)=>`<div class="tcol"><h4>${b}</h4>${Object.entries(TREE).filter(([k,v])=>v.b===bi).map(([k,v])=>{const own=P.tr.has(k),can=u.has(k),buy=direct&&my&&can&&P.atp>=traitCost(p,k);
+  return `<div class="node ${own?'own':can?'can':''} ${buy?'buy':''}" ${buy?`data-a="buy" data-v="${k}"`:''} style="${own?`background:${P.col};border-color:${P.col};box-shadow:0 0 14px ${P.col}66`:''}"><span class="t">T${v.t}${direct&&!own?' · '+traitCost(p,k)+'⚡':''}</span><b>${v.n}</b>${v.d}${v.q.length&&!own?`<div class="req">needs: ${v.q.map(x=>TREE[x].n).join(' / ')}</div>`:''}</div>`}).join('')}</div>`).join('')}</div>`}
+const UI={tip(i,x,y){const t=$('#tip');if(!S||i<0){t.style.display='none';return}const o=S.grid[i],k=S.tile[i],p=S.turn,cur=S.players[p];let h='';
+  if(o>=0)h+=`<div>${pc(o)} <span class="mut"><i>${S.players[o].sp.n}</i></span></div>`;else h+='<div class="mut">Empty agar</div>';
+  if(k){const v=tileVal(p,k,gluOwned(p));h+=`<div><b style="color:${TL[k].c}">${TL[k].n}</b> ${k==='dna'?'— free mutation when taken':k==='phg'?`— +2, 25%/round loss${has(p,'cr')?' (you have CRISPR)':''}`:`— worth +${v} to ${cur.name==='You'?'you':esc(cur.name)}`}</div>`}
+  if(cur.human&&!S.over&&!S.offer){if(S.aim)h+='<div style="color:#ff8a9a">Click to aim the wave here</div>';else{const a=actionCost(p,i);if(a)h+=`<div style="color:${a.k==='invade'?'#ff8a9a':cur.col}">${a.k[0].toUpperCase()+a.k.slice(1)} — ${a.c} ATP</div>`;else if(o>=0&&o!==p&&has(o,'mbio')&&ownNb(o,i)>=3&&nb4(i).some(j=>S.grid[j]===p))h+='<div class="mut">Protected by mature biofilm</div>'}}
+  t.innerHTML=h;t.style.display='block';t.style.left=Math.min(innerWidth-270,x+16)+'px';t.style.top=(y+16)+'px'},
+ click(i){if(!S||S.over)return;const p=S.turn,P=S.players[p];if(!P.human||S.offer)return;
+  if(S.aim){aimAt(p,i);S.aim=false;log(`🎯 ${pc(p)} aims the next antibiotic wave.`);render();return}
+  if(act(p,i)){if(!checkWinNow(p))render()}}};
+document.addEventListener('click',e=>{const t=e.target.closest('[data-a]');if(!t)return;const a=t.dataset.a,v=t.dataset.v;
+ if(a==='tree'){treeOpen=!treeOpen;$('#tree').classList.toggle('open',treeOpen);return}
+ if(a==='results'){showEnd();return}
+ if(t.closest('#mbox')){setupClick(a,v,t);return}
+ if(!S||S.over)return;const p=S.turn,P=S.players[p];if(!P.human)return;
+ if(a==='mut'&&!S.offer&&P.atp>=mutCost(p)){const u=shuf(unlockable(p)).slice(0,nOffers(p));if(u.length){P.atp-=mutCost(p);P.bought++;S.offer={kind:'mut',list:u};render()}}
+ else if(a==='conj'&&canConj(p)&&!S.offer){P.atp-=conjCost(p);P.conjUsed=true;S.offer={kind:'conj',list:shuf(conjList(p)).slice(0,3)};render()}
+ else if(a==='pick'&&S.offer){const why={mut:'mutated',dna:'took up free DNA',conj:'conjugated'}[S.offer.kind];S.offer=null;gain(p,v,why);render()}
+ else if(a==='buy'){const c=traitCost(p,v);if(P.atp>=c&&unlockable(p).includes(v)){P.atp-=c;P.bought++;gain(p,v,'evolved');render()}}
+ else if(a==='aim'){S.aim=!S.aim;render()}
+ else if(a==='rot'){S.band.ax=S.band.ax==='r'?'c':'r';S.band.st=Math.min(S.band.st,S.N-S.band.w);render()}
+ else if(a==='end'&&!S.offer)nextTurn()});
+addEventListener('keydown',e=>{if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;if(e.key==='t'||e.key==='T'){treeOpen=!treeOpen;$('#tree').classList.toggle('open',treeOpen)}
+ else if((e.key==='e'||e.key==='E')&&S&&!S.over&&S.players[S.turn].human&&!S.offer)nextTurn();else if(e.key==='Escape'){treeOpen=false;$('#tree').classList.remove('open')}});
+$('#bTree').onclick=()=>{treeOpen=!treeOpen;$('#tree').classList.toggle('open',treeOpen)};
+$('#bRules').onclick=()=>openModal(rulesHTML()+`<div class="row" style="margin-top:14px"><button class="btn pri" data-a="close">Back</button></div>`);
+$('#bNew').onclick=()=>showSetup();
+
+/* ---------------- screens ---------------- */
+const chips=(a,vals,cur)=>vals.map(v=>`<button class="btn ${v===cur?'on':''}" data-a="${a}" data-v="${v}">${v}</button>`).join('');
+function showSetup(){ensureSeats();const n=cfg.n,AN=AUTO[n];
+ openModal(`<h1>PETRI</h1><div class="mut">A territory game played on a petri dish. Each player is a real bacterial species, tagged with a fluorescent protein.</div>
+ <h2>Players</h2><div class="row">${chips('n',[2,3,4,5,6,7,8,9,10],n)}</div>
+ <div class="seats" style="margin-top:8px">${cfg.seats.slice(0,n).map((s,i)=>`<div class="seat"><span style="width:12px;height:12px;border-radius:50%;background:${FP[i].c};box-shadow:0 0 10px ${FP[i].c}"></span>
+  <button class="btn ${s.human?'on':''}" data-a="hum" data-v="${i}" style="min-width:74px">${s.human?'Human':'AI'}</button>
+  <select data-seat="${i}" aria-label="Species for seat ${i+1}"><option value="random">Random species</option>${SPECIES.map(sp=>`<option value="${sp.id}" ${s.sp===sp.id?'selected':''}>${sp.n}</option>`).join('')}</select></div>`).join('')}</div>
+ <h2>Dish</h2><div class="row">${chips('shape',['Circle','Square'],cfg.shape)}<span style="width:14px"></span>${chips('size',['Auto','Custom'],cfg.size)}
+  ${cfg.size==='Custom'?`<input type="number" id="csz" min="8" max="40" value="${cfg.custom}" style="width:80px"> <span class="mut">× same (8–40)</span>`:`<span class="mut">${AN} × ${AN}</span>`}</div>
+ <h2>Rules</h2><div class="row"><span class="mut">Rounds</span>${chips('rounds',[15,20,30],cfg.rounds)}<span style="width:14px"></span><span class="mut">Mutations</span>${chips('mode',['Random offers','Pick from tree'],cfg.mode)}<span style="width:14px"></span><span class="mut">AI</span>${chips('diff',['Easy','Normal','Hard'],cfg.diff)}</div>
+ <div class="mut" style="font-size:12.5px;margin-top:4px">Random offers = closer to real evolution: pay ATP, then choose among random unlockable traits. Pick from tree = buy any unlockable trait directly.</div>
+ <div class="row" style="margin-top:16px"><button class="btn pri" data-a="go" style="min-width:160px">Inoculate the dish</button>${S?'<button class="btn" data-a="close">Cancel</button>':''}<button class="btn" data-a="rules">Rules</button></div>
+ <h2>Species</h2><div class="spgrid">${SPECIES.map(sp=>`<div class="spc"><b><i>${sp.n}</i></b>${sp.a.map(a=>`<div><em>${a[0]}</em> — ${a[1]}</div>`).join('')}</div>`).join('')}</div>`);
+ $('#mbox').querySelectorAll('select[data-seat]').forEach(s=>s.onchange=()=>{cfg.seats[+s.dataset.seat].sp=s.value});
+ const cz=$('#csz');if(cz)cz.oninput=()=>{cfg.custom=+cz.value}}
+function setupClick(a,v,t){
+ if(a==='n'){cfg.n=+v;if(!cfg.seats.slice(0,cfg.n).some(s=>s.human))cfg.seats[0].human=true;showSetup()}
+ else if(a==='hum'){const s=cfg.seats[+v];s.human=!s.human;if(!cfg.seats.slice(0,cfg.n).some(x=>x.human))s.human=true;showSetup()}
+ else if(a==='shape'){cfg.shape=v;showSetup()}else if(a==='size'){cfg.size=v;showSetup()}else if(a==='rounds'){cfg.rounds=+v;showSetup()}else if(a==='mode'){cfg.mode=v;showSetup()}else if(a==='diff'){cfg.diff=v;showSetup()}
+ else if(a==='go'){if(!G){openModal('<h1>WebGL unavailable</h1><p>This game needs WebGL and the three.js library. Try another browser.</p>');return}newGame()}
+ else if(a==='close'){S?closeModal():showSetup()}else if(a==='rules')openModal(rulesHTML()+`<div class="row" style="margin-top:14px"><button class="btn pri" data-a="${S?'close':'back'}">Back</button></div>`);
+ else if(a==='back')showSetup();else if(a==='again')showSetup()}
+function rulesHTML(){return `<h1>How to play</h1>
+ <h2>Your turn</h2><div>You gain ATP each turn (base + 1 per 10 cells + special tiles you own + traits; cap 20). Spend it:</div>
+ <ul><li><b>Grow</b> onto an empty tile next to your colony — 1 ATP (rings show where).</li><li><b>Invade</b> an adjacent enemy cell — 3 ATP plus their defences (red rings).</li><li><b>Mutate</b> — unlock traits on the mutation tree (T).</li><li>Press <b>End turn</b> (E).</li></ul>
+ <h2>Special tiles</h2><div class="legend">${Object.entries(TL).map(([k,v])=>`<span><b style="background:${v.c}"></b>${v.n}</span>`).join('')}</div>
+ <ul><li><b>Glucose</b> +2 ATP. <b>Lactose</b> +2 only with Lac operon, +1 if you own 3+ Glucose (catabolite repression). <b>Iron</b> +3 only with Siderophores. <b>O₂ pocket</b> +1, or +3 with Aerobic respiration.</li>
+ <li><b>Phage hotspot</b> +2, but each round a cell there has a 25% chance to be lysed (CRISPR protects). <b>Free DNA</b>: one free random mutation when taken (natural transformation).</li></ul>
+ <h2>Antibiotic waves</h2><div>Every 4 rounds a wave kills every non-resistant cell in the red band (it appears one round ahead). Resistance protects; persisters survive half the time.</div>
+ <h2>Winning</h2><div>Most cells when the last round ends, or hold half the dish, or be the last strain alive.</div>
+ <h2>Controls</h2><div>Drag to rotate · right-drag or Shift-drag to pan · scroll or pinch to zoom · hover a tile for details.</div>`}
+function showEnd(){const r=S.players.map((P,i)=>({P,i,c:count(i)})).sort((a,b)=>b.c-a.c);
+ openModal(`<h1 style="color:${r[0].P.col};text-shadow:0 0 30px ${r[0].P.col}">${esc(r[0].P.name)} wins</h1><div class="mut"><i>${r[0].P.sp.n}</i> took over the dish with ${r[0].c} cells.</div>
+ <table class="rk" style="margin-top:14px">${r.map((x,k)=>`<tr><td class="num">${k+1}</td><td><span style="color:${x.P.col}">●</span> <b>${esc(x.P.name)}</b> <span class="mut"><i>${x.P.sp.n}</i></span></td><td class="num" style="text-align:right">${x.c} cells</td><td class="mut" style="font-size:12px">${[...x.P.tr].map(k=>TREE[k].n).join(', ')||'—'}</td></tr>`).join('')}</table>
+ <div class="row" style="margin-top:14px"><button class="btn pri" data-a="again">New game</button><button class="btn" data-a="close">Look at the dish</button></div>`)}
+if(!G){openModal('<h1>WebGL unavailable</h1><p>This game needs WebGL and the three.js library, which could not load. Try reloading or another browser.</p>')}else showSetup();
+window.__petri={get S(){return S},cfg,newGame,nextTurn,aiTurn,G};
+}
+</script>
+</body>
+</html>
