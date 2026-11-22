@@ -92,6 +92,34 @@ table.rk{width:100%;border-collapse:collapse}table.rk td{padding:8px 6px;border-
 .legend div{display:flex;gap:8px;align-items:flex-start}
 .legend canvas{flex:none}
 .bigcode{font-size:40px;font-weight:700;letter-spacing:.2em;color:var(--acc)}
+#screen{position:fixed;inset:0;background:var(--bg);z-index:8;overflow:auto;display:none}
+#screen.show{display:block}
+.page{max-width:1080px;margin:0 auto;padding:22px 20px 60px}
+.pagetop{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.page h1{font-size:34px;line-height:1.1;margin:0 0 4px;letter-spacing:-.01em}.page h2{font-size:15px;margin:22px 0 8px}.page p{max-width:72ch}
+.home{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:28px;align-items:center;min-height:calc(100dvh - 80px)}
+.home h1{font-size:clamp(44px,7vw,76px);line-height:1;margin:0;letter-spacing:-.02em}
+.home .tag{font-size:17px;color:var(--mut);margin:10px 0 26px;max-width:40ch}
+.home .menu{display:flex;flex-direction:column;gap:10px;max-width:340px}
+.home .menu .btn{min-height:50px;font-size:16px;justify-content:flex-start;padding:0 18px}
+.home canvas{width:100%;aspect-ratio:1;max-width:560px;justify-self:center}
+@media(max-width:760px){.home{grid-template-columns:1fr}.home canvas{max-width:340px;order:-1}}
+.tbody{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;margin-top:10px}
+@media(max-width:900px){.tbody{grid-template-columns:1fr}}
+.tcols2{display:grid;grid-template-columns:repeat(5,minmax(140px,1fr));gap:10px;overflow-x:auto}
+.tcols2 h4{margin:0 0 6px;font-size:12.5px;color:var(--mut);font-weight:600}
+.tn{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 8px;align-items:center;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:7px 9px;margin-bottom:6px;cursor:pointer;color:var(--mut)}
+.tn .tt{font-size:10.5px;grid-row:1/3;align-self:center;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1px solid var(--line)}
+.tn .nn{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tn .ee{font-size:11.5px;grid-column:2/4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tn .bg{font-size:11px;font-weight:700;border-radius:6px;padding:0 5px;white-space:nowrap}
+.tn.can{color:var(--ink);border-color:var(--acc)}.tn.can .tt{border-color:var(--acc)}
+.tn.own{color:var(--ink)}.tn.lock{opacity:.5}
+.tn.sel{box-shadow:0 0 0 2px var(--acc)}
+.tdet{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--panel2);align-self:start;position:sticky;top:0}
+.tdet h3{margin:0;font-size:18px}.tdet .k{font-size:12px;color:var(--mut)}
+.tdet .now{border-left:3px solid var(--acc);padding:6px 10px;margin:10px 0;background:var(--panel)}
+.lab{font-size:11.5px;color:var(--mut);text-transform:none;margin-top:8px;font-weight:600}
 @media(max-width:760px){#app{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) auto auto}
  aside{grid-row:3;grid-column:1;max-height:130px;border-right:0;border-top:1px solid var(--line);flex-direction:row}
  #players{max-height:none;flex:1}#log{display:none}#board{grid-column:1}#bar{grid-row:4;grid-column:1}#roundbox{font-size:12px}.hidem{display:none}}
@@ -116,6 +144,7 @@ table.rk{width:100%;border-collapse:collapse}table.rk td{padding:8px 6px;border-
 </div>
 <section id="tree"></section>
 <div id="tip"></div>
+<div id="screen"></div>
 <div id="modal"><div class="mbox" id="mbox"></div></div>
 <script>
 /* Petri rules engine. Pure game logic, seeded RNG, no DOM. */
@@ -138,7 +167,7 @@ const TREE={
  h2o2:{n:'H₂O₂ secretion',b:1,t:2,q:['tox'],w:'Releasing hydrogen peroxide, which kills nearby cells.',d:'At the start of your turn, 1 random enemy cell touching you dies. Capsule protects.'},
  t6:{n:'T6SS needle',b:1,t:3,q:['prot'],w:'A spring-loaded needle that stabs toxins into neighbouring bacteria.',d:'Your first invasion each turn is free.'},
  pred:{n:'Predatory lifestyle',b:1,t:3,q:['h2o2','prot'],w:'Eating other bacteria for energy.',d:'Get 1 ATP back after each invasion (up to 3 per turn).'},
- abx:{n:'Antibiotic production',b:1,t:4,q:['t6','pred'],w:'Making your own antibiotics, the way Streptomyces does.',d:'You choose where each antibiotic wave lands, and your cells are immune to it.'},
+ arsenal:{n:'Toxin arsenal',b:1,t:4,q:['t6','pred'],w:'A whole set of toxin genes, so no defence works against you.',d:'Every invasion costs exactly 1 ATP, whatever defences the enemy has.'},
  mot:{n:'Flagella',b:2,t:1,q:[],w:'Whip-like tails that let bacteria swim.',d:'You can grow onto tiles up to 2 steps away from your colony.'},
  twi:{n:'Twitching motility',b:2,t:1,q:[],w:'Hair-like pili that pull the cell along surfaces.',d:'Diagonal tiles count as next to you when growing.'},
  chemo:{n:'Chemotaxis',b:2,t:2,q:['mot','twi'],w:'Sensing chemicals and moving toward food.',d:'Growing onto any special tile costs 0 ATP.'},
@@ -155,28 +184,33 @@ const TREE={
  compt:{n:'Natural competence',b:4,t:1,q:[],w:'Picking up loose DNA from the environment.',d:'Mutating shows 4 choices instead of 3, and Free DNA lets you choose.'},
  conj:{n:'Conjugation',b:4,t:2,q:['compt'],w:'Passing a plasmid to a neighbour through a tube called a pilus.',d:'Once per turn, pay 3 ATP to copy a trait from an enemy touching you.'},
  integ:{n:'Integron',b:4,t:3,q:['conj'],w:'A genetic dock that captures new gene cassettes.',d:'Get a free random trait every time an antibiotic wave hits.'}};
+const SHORT={lac:'Lactose tiles give ATP',sid:'Iron tiles give ATP',pts:'Glucose gives +3',crp:'Lactose never halved',aero:'Oxygen gives +3',fast:'+2 ATP every turn',qs:'+1 ATP per 8 cells',stor:'Bank up to 35 ATP',
+ tox:'Invading costs 1 less',prot:'Ignore enemy shields',h2o2:'Kill 1 neighbour per turn',t6:'First invasion is free',pred:'+1 ATP per invasion',arsenal:'Every invasion costs 1',
+ mot:'Grow 2 tiles away',twi:'Grow diagonally',chemo:'Special tiles are free',swarm:'Grow 3 tiles away',disp:'Grow anywhere, once a turn',
+ bio:'Invading you costs +2',res:'Waves cannot kill you',cap:'Invading you costs +1',comp:'Resistance becomes free',pers:'Half survive waves',cr:'Phages cannot kill you',spore:'Come back once',mbio:'Inner cells are safe',
+ compt:'4 mutation choices',conj:'Copy enemy traits',integ:'Free trait every wave'};for(const k in SHORT)TREE[k].e=SHORT[k];
 const SPECIES=[
- {id:'eco',n:'Escherichia coli',w:'Gut bacterium and the most studied organism in biology labs.',a:'Lac operon from birth',d:'Starts with Lac operon, so Lactose tiles give ATP.',start:['lac'],f:{}},
- {id:'bsu',n:'Bacillus subtilis',w:'Soil bacterium that survives hard times as tough spores.',a:'Spore former',d:'Starts with Endospores: the first time you are wiped out, you come back as a small colony.',start:['spore'],f:{}},
- {id:'pae',n:'Pseudomonas aeruginosa',w:'Hospital germ famous for slimy biofilms.',a:'Biofilm former',d:'Starts with Biofilm: enemies pay +2 ATP to invade you.',start:['bio'],f:{}},
- {id:'vch',n:'Vibrio cholerae',w:'Causes cholera. One of the fastest swimming bacteria.',a:'Fast swimmer',d:'Starts with Flagella: you can grow onto tiles 2 steps away.',start:['mot'],f:{}},
- {id:'sco',n:'Streptomyces coelicolor',w:'Soil bacterium that makes many of the antibiotics used as medicine.',a:'Antibiotic factory',d:'You choose where each antibiotic wave lands, and you are immune to it. Base income is 1 lower.',start:['abx'],f:{base:-1}},
- {id:'sau',n:'Staphylococcus aureus',w:'Skin bacterium. MRSA is its drug-resistant form.',a:'MRSA',d:'Starts with Resistance plasmid and Compensatory mutation: antibiotic waves never hurt you, at no ATP cost.',start:['res','comp'],f:{}},
- {id:'mtb',n:'Mycobacterium tuberculosis',w:'Causes tuberculosis. Grows slowly behind a thick waxy wall.',a:'Waxy wall',d:'Enemies pay +2 ATP to invade you, waves kill only half of your cells, and H₂O₂ cannot hurt you. Base income is 1 lower.',start:[],f:{wax:1,base:-1}},
- {id:'mxa',n:'Myxococcus xanthus',w:'Hunts and eats other bacteria in packs.',a:'Pack hunter',d:'Get 1 ATP back after each invasion (up to 3 per turn).',start:[],f:{pred:1}},
- {id:'ana',n:'Anabaena',w:'A cyanobacterium: it gets energy from sunlight, like a plant.',a:'Photosynthesis',d:'+1 ATP every turn for each 5 cells you own, but Glucose gives only +1.',start:[],f:{photo:1,glu1:1}},
- {id:'lbc',n:'Lactobacillus',w:'The yogurt bacterium. It sours its surroundings with lactic acid.',a:'Lactic acid',d:'At the start of your turn, 1 random enemy cell touching you dies (Capsule blocks it).',start:[],f:{acid:1}}];
+ {id:'eco',n:'Escherichia coli',w:'Gut bacterium and the most studied organism in biology labs. It can divide every 20 minutes.',a:'Fast doubling',d:'Your first grow every turn is free.',start:[],f:{freeGrows:1}},
+ {id:'bsu',n:'Bacillus subtilis',w:'Soil bacterium whose spores blow around and start new colonies.',a:'Spore drop',d:'Every 5 rounds, start a new cell on any empty tile of the dish for free.',start:[],f:{sporeDrop:5}},
+ {id:'pae',n:'Pseudomonas aeruginosa',w:'Hospital germ famous for thick biofilms.',a:'Thick biofilm',d:'Enemies pay +1 ATP to invade any of your cells, and +3 for cells surrounded by 3 or more of yours.',start:[],f:{thick:1}},
+ {id:'vch',n:'Vibrio cholerae',w:'Causes cholera. Stabs rival bacteria with a toxin needle.',a:'Needle strike',d:'Invading costs 1 ATP less, and the player you invade loses 1 ATP.',start:[],f:{drain:1}},
+ {id:'sco',n:'Streptomyces coelicolor',w:'Soil bacterium that makes many of the antibiotics used as medicine.',a:'Antibiotic factory',d:'You choose where each antibiotic wave lands, and waves never hurt you. Base income is 1 lower.',start:[],f:{abx:1,base:-1}},
+ {id:'sau',n:'Staphylococcus aureus',w:'Skin bacterium. MRSA is its drug-resistant form.',a:'MRSA',d:'Antibiotic waves never hurt you, and you gain 1 ATP for every 3 enemy cells a wave kills. Base income is 1 lower.',start:[],f:{mrsa:1,base:-1}},
+ {id:'mtb',n:'Mycobacterium tuberculosis',w:'Causes tuberculosis. Grows slowly behind a thick waxy wall.',a:'Waxy wall',d:'Enemies pay +1 ATP to invade you, waves kill only half of your cells, and H₂O₂ cannot hurt you. Base income is 1 lower.',start:[],f:{wax:1,base:-1}},
+ {id:'mxa',n:'Myxococcus xanthus',w:'Hunts other bacteria in swarming packs.',a:'Pack hunt',d:'Invading costs 1 ATP less, or 2 less when 2 or more of your cells touch the target.',start:[],f:{pack:1}},
+ {id:'ana',n:'Anabaena',w:'A cyanobacterium: it gets energy from sunlight, like a plant.',a:'Photosynthesis',d:'+1 ATP every turn for each 6 cells you own, but Glucose gives only +1.',start:[],f:{photo:1,glu1:1}},
+ {id:'lbc',n:'Lactobacillus',w:'The yogurt bacterium. It makes the ground around it sour with lactic acid.',a:'Sour ground',d:'Enemies pay +2 ATP to grow onto empty tiles touching your cells.',start:[],f:{sour:1}}];
 const FOUNDERS=[
- {id:'ribo',n:'Efficient ribosomes',w:'A ribosome mutation that makes building proteins cheaper.',d:'+1 ATP every turn.',f:{base:1}},
- {id:'mutS',n:'Hypermutator',w:'A broken DNA-repair gene (mutS), so new mutations appear faster.',d:'Every mutation costs 1 ATP less.',f:{mutDisc:1}},
- {id:'toxx',n:'Toxin overproducer',w:'Extra copies of a toxin gene.',d:'Invading costs 1 ATP less.',f:{invDisc:1}},
- {id:'alg',n:'Alginate slime',w:'Makes extra alginate, a sticky slime that shields the colony.',d:'Enemies pay +1 ATP to invade you.',f:{slime:1}},
- {id:'adh',n:'Sticky adhesins',w:'Surface proteins that grab new ground quickly.',d:'Your first grow each turn is free.',f:{freeGrow:1}},
- {id:'sug',n:'Sugar sensor',w:'A finely tuned glucose transporter.',d:'Glucose tiles give +1 extra ATP.',f:{gluBonus:1}},
- {id:'rpoS',n:'Stress responder',w:'An overactive stress gene (rpoS) that helps cells survive shocks.',d:'Antibiotic waves kill only about half of your cells.',f:{halfWave:1}},
- {id:'lyso',n:'Lysogen',w:'Carries a sleeping virus in its DNA, which blocks related viruses.',d:'Phage hotspots never kill your cells and give +1 extra ATP.',f:{phgSafe:1}},
- {id:'phb',n:'Energy hoarder',w:'Born with extra energy stored as PHB granules.',d:'Start with 8 ATP, and you can bank 10 more ATP than normal.',f:{bank:1}},
- {id:'hgt',n:'Plasmid collector',w:'Born carrying two extra plasmids.',d:'Start with 2 random tier-1 traits.',f:{lucky:2}}];
+ {id:'ribo',n:'Efficient ribosomes',w:'A ribosome mutation that makes building proteins cheaper.',d:'+2 ATP every turn.',f:{base:2}},
+ {id:'mutS',n:'Hypermutator',w:'A broken DNA-repair gene (mutS), so new mutations appear faster.',d:'Every mutation costs 2 ATP less and shows 1 extra choice.',f:{mutDisc:2}},
+ {id:'hgt',n:'Plasmid collector',w:'Born carrying two extra plasmids.',d:'Start with 2 random tier-1 traits.',f:{lucky:2}},
+ {id:'phb',n:'Energy hoarder',w:'Born with extra energy stored as PHB granules.',d:'Start the game with 9 ATP already banked.',f:{startAtp:9}},
+ {id:'lyso',n:'Prophage',w:'A sleeping virus hides in its DNA and wakes up when the cell is attacked.',d:'Whenever an enemy invades one of your cells, that enemy loses 3 ATP and you gain 1.',f:{prophage:1}},
+ {id:'sos',n:'SOS response',w:'An emergency DNA-repair system that turns damage into a burst of energy.',d:'Each of your cells killed by an antibiotic wave, poison or phage gives you 2 ATP.',f:{sos:1}},
+ {id:'slime',n:'Alginate burst',w:'Releases a sudden layer of slime when first touched.',d:'The first invasion against you each round costs +3 ATP.',f:{shield:1}},
+ {id:'terr',n:'Contact inhibition',w:'Sends signals that stop other cells from growing next to the colony.',d:'Enemies cannot grow onto empty tiles that touch your cells. They have to invade you instead.',f:{territory:1}},
+ {id:'scav',n:'Scavenger',w:'Feeds on the remains of dead cells.',d:'When an antibiotic wave kills cells, empty tiles touching your colony become yours.',f:{scavenger:1}},
+ {id:'glyc',n:'Glycogen vault',w:'Locks its sugar away inside tough granules.',d:'Enemies cannot invade your Glucose tiles.',f:{glyco:1}}];
 const TEST_SPECIES={id:'none',n:'Test strain',w:'',a:'None',d:'No ability.',start:[],f:{}},TEST_FOUNDER={id:'none',n:'None',w:'',d:'No ability.',f:{}};
 const AUTO={2:12,3:14,4:16,5:18,6:20,7:22,8:24,9:26,10:28};
 const TFREQ={glu:.035,lac:.03,fe:.02,o2:.025,phg:.015,dna:.01};
@@ -190,34 +224,40 @@ const has=(p,k)=>S.players[p].tr.has(k),fl=(p,f)=>S.players[p].f[f]||0;
 const count=p=>{let k=0;for(const o of S.grid)if(o===p)k++;return k};
 const gluOwned=p=>{let k=0;S.grid.forEach((o,i)=>{if(o===p&&S.tile[i]==='glu')k++});return k};
 function tileVal(p,k,g){switch(k){
- case'glu':return fl(p,'glu1')?1:(has(p,'pts')?3:2)+fl(p,'gluBonus');
+ case'glu':return fl(p,'glu1')?1:(has(p,'pts')?3:2);
  case'lac':return has(p,'lac')?(g>=3&&!has(p,'crp')?1:2):0;
- case'fe':return has(p,'sid')?3:0;case'o2':return has(p,'aero')?3:1;case'phg':return 2+(fl(p,'phgSafe')?1:0)}return 0}
+ case'fe':return has(p,'sid')?3:0;case'o2':return has(p,'aero')?3:1;case'phg':return 2}return 0}
 function incomeParts(p){const cells=count(p),g=gluOwned(p);let tiles=0;S.grid.forEach((o,i)=>{if(o===p&&S.tile[i])tiles+=tileVal(p,S.tile[i],g)});
  const a=[['Base',3+fl(p,'base')],['Colony size',(cells/10)|0],['Tiles',tiles]];
- if(has(p,'fast'))a.push(['Rapid division',2]);if(has(p,'qs'))a.push(['Quorum sensing',(cells/8)|0]);if(fl(p,'photo'))a.push(['Photosynthesis',(cells/5)|0]);
+ if(has(p,'fast'))a.push(['Rapid division',2]);if(has(p,'qs'))a.push(['Quorum sensing',(cells/8)|0]);if(fl(p,'photo'))a.push(['Photosynthesis',(cells/6)|0]);
  if(has(p,'res')&&!has(p,'comp'))a.push(['Resistance cost',-1]);return a}
 const income=p=>Math.max(1,incomeParts(p).reduce((s,x)=>s+x[1],0));
 const capOf=p=>(has(p,'stor')?35:20)+(fl(p,'bank')?10:0);
+function denied(p,j){for(const q of S.terr){if(q===p)continue;let k=0;for(const x of nb4(j))if(S.grid[x]===q)k++;if(k>=1)return true}return false}
 function reachSet(p){const n=S.N,d=has(p,'swarm')?3:has(p,'mot')?2:1,cheb=has(p,'twi'),out=new Set();
- S.grid.forEach((o,i)=>{if(o!==p)return;const r=(i/n)|0,c=i%n;for(let a=-d;a<=d;a++)for(let b=-d;b<=d;b++){if((cheb?Math.max(Math.abs(a),Math.abs(b)):Math.abs(a)+Math.abs(b))>d)continue;const rr=r+a,cc=c+b;if(rr<0||cc<0||rr>=n||cc>=n)continue;const j=rr*n+cc;if(S.land[j]&&S.grid[j]===-1)out.add(j)}});return out}
-const growCost=(p,i)=>(has(p,'chemo')&&S.tile[i])||(fl(p,'freeGrow')&&!S.players[p].grew)?0:1;
+ S.grid.forEach((o,i)=>{if(o!==p)return;const r=(i/n)|0,c=i%n;for(let a=-d;a<=d;a++)for(let b=-d;b<=d;b++){if((cheb?Math.max(Math.abs(a),Math.abs(b)):Math.abs(a)+Math.abs(b))>d)continue;const rr=r+a,cc=c+b;if(rr<0||cc<0||rr>=n||cc>=n)continue;const j=rr*n+cc;if(S.land[j]&&S.grid[j]===-1&&!out.has(j)&&!denied(p,j))out.add(j)}});return out}
+const soured=(p,i)=>nb4(i).some(j=>{const q=S.grid[j];return q>=0&&q!==p&&fl(q,'sour')});
+const growRaw=(p,i)=>(has(p,'chemo')&&S.tile[i]?0:1)+(soured(p,i)?2:0);
+const growCost=(p,i)=>{const c=growRaw(p,i);return c>0&&S.players[p].free>0?0:c};
 const ownNb=(p,i)=>nb4(i).filter(j=>S.grid[j]===p).length;
-const isPred=p=>has(p,'pred')||fl(p,'pred');
-function invCost(p,i){const o=S.grid[i];if(o<0||o===p||!S.players[o].alive)return null;if(!nb4(i).some(j=>S.grid[j]===p))return null;if(has(o,'mbio')&&ownNb(o,i)>=3)return null;
- const P=S.players[p];if(has(p,'t6')&&P.inv===0)return 0;const pr=has(p,'prot');
- return Math.max(1,3-(has(p,'tox')?1:0)-fl(p,'invDisc')+(pr?0:(has(o,'bio')?2:0)+(has(o,'cap')?1:0)+fl(o,'slime'))+(fl(o,'wax')?2:0))}
+function invCost(p,i){const o=S.grid[i];if(o<0||o===p||!S.players[o].alive)return null;if(!nb4(i).some(j=>S.grid[j]===p))return null;
+ const on=ownNb(o,i);if(has(o,'mbio')&&on>=3)return null;if(fl(o,'glyco')&&S.tile[i]==='glu')return null;
+ const P=S.players[p];if(has(p,'arsenal'))return 1;if(has(p,'t6')&&P.inv===0)return 0;const pr=has(p,'prot');
+ let c=3-(has(p,'tox')?1:0)-(fl(p,'drain')?1:0)-(fl(p,'pack')?Math.min(2,ownNb(p,i)):0);
+ if(!pr)c+=(has(o,'bio')?2:0)+(has(o,'cap')?1:0)+(fl(o,'thick')?(on>=3?3:1):0);
+ c+=(fl(o,'wax')?1:0)+(fl(o,'shield')&&S.players[o].shieldR!==S.round?3:0);return Math.max(1,c)}
 const canDisp=p=>has(p,'disp')&&!S.players[p].disp&&S.players[p].atp>=3;
 const traitCost=(p,k)=>Math.max(1,TC[TREE[k].t]-fl(p,'mutDisc'));
 const mutCost=p=>Math.max(1,4+((S.players[p].bought/3)|0)-fl(p,'mutDisc'));
-const nOffers=p=>3+(has(p,'compt')?1:0);
+const nOffers=p=>3+(has(p,'compt')?1:0)+(fl(p,'mutDisc')?1:0);
 const unlockable=p=>Object.keys(TREE).filter(k=>!has(p,k)&&(TREE[k].q.length===0||TREE[k].q.some(x=>has(p,x))));
 function touching(p){const s=new Set();S.grid.forEach((o,i)=>{if(o===p)for(const j of nb4(i)){const q=S.grid[j];if(q>=0&&q!==p)s.add(q)}});return[...s].sort((a,b)=>a-b)}
 const conjCost=p=>3;
 function conjList(p){const s=new Set();for(const q of touching(p))for(const k of S.players[q].tr)if(!has(p,k))s.add(k);return Object.keys(TREE).filter(k=>s.has(k))}
 const canConj=p=>has(p,'conj')&&!S.players[p].conjUsed&&S.players[p].atp>=conjCost(p)&&conjList(p).length>0;
-const immune=o=>has(o,'abx')||has(o,'res'),halfWave=o=>has(o,'pers')||fl(o,'wax')||fl(o,'halfWave');
-const phgSafe=o=>has(o,'cr')||fl(o,'phgSafe');
+const immune=o=>fl(o,'abx')||fl(o,'mrsa')||has(o,'res'),halfWave=o=>has(o,'pers')||fl(o,'wax');
+const phgSafe=o=>has(o,'cr');
+const canSpore=p=>fl(p,'sporeDrop')&&S.round>=S.players[p].sporeAt;
 const inBand=i=>{const v=S.band.ax==='r'?((i/S.N)|0):i%S.N;return v>=S.band.st&&v<S.band.st+S.band.w};
 const warnOn=()=>S.round>=S.bandRound-1;
 const humansAlive=()=>S.players.some(p=>p.human&&p.alive);
@@ -265,11 +305,11 @@ function newGame(cfg,seats,seed){
  const freeSp=RS(SPECIES.map(s=>s.id).filter(id=>!usedSp.has(id))),freeF=RS(FOUNDERS.map(s=>s.id).filter(id=>!usedF.has(id)));
  const hum=seats.filter(s=>s.human).length;let hk=0;
  const players=seats.map((st,i)=>{const sid=st.sp==='random'?(freeSp.pop()||RP(SPECIES).id):st.sp,fid=st.fm==='random'?(freeF.pop()||RP(FOUNDERS).id):st.fm;
-  const sp=sid==='none'?TEST_SPECIES:SPECIES.find(s=>s.id===sid),fm=fid==='none'?TEST_FOUNDER:FOUNDERS.find(s=>s.id===fid);
+  const sp=sid==='none'?TEST_SPECIES:(SPECIES.find(s=>s.id===sid)||RP(SPECIES)),fm=fid==='none'?TEST_FOUNDER:(FOUNDERS.find(s=>s.id===fid)||RP(FOUNDERS));
   const f={};for(const src of[sp.f,fm.f])for(const k in src)f[k]=(f[k]||0)+src[k];if(st.human)hk++;
-  return{name:st.name||(st.human?(hum>1?`Player ${hk}`:'You'):`${COLORN[i]} AI`),ci:i,human:!!st.human,uid:st.uid||null,sp,fm,f,atp:f.bank?8:0,tr:new Set(sp.start),bought:0,alive:!!m.spawns[i],spored:false,inv:0,pred:0,disp:false,conjUsed:false,grew:false}});
+  return{name:st.name||(st.human?(hum>1?`Player ${hk}`:'You'):`${COLORN[i]} AI`),ci:i,human:!!st.human,uid:st.uid||null,sp,fm,f,atp:f.startAtp||0,tr:new Set(sp.start),bought:0,alive:!!m.spawns[i],spored:false,inv:0,pred:0,disp:false,conjUsed:false,free:0,sporeAt:3,shieldR:0}});
  S={...S,cfg:{rounds:cfg.rounds,mode:cfg.mode,diff:cfg.diff,shape:cfg.shape,startRotate:!!cfg.startRotate},N,land:m.land,grid:m.grid,tile:m.tile,L:m.L,spawns:m.spawns,players,
-  order:players.map((_,i)=>i),oi:0,turn:0,round:1,bandRound:4,band:null,offer:null,log:[],over:false,seq:0,winner:null};
+  terr:players.map((P,i)=>P.f.territory?i:-1).filter(i=>i>=0),order:players.map((_,i)=>i),oi:0,turn:0,round:1,bandRound:4,band:null,offer:null,log:[],over:false,seq:0,winner:null};
  {const km=cfg.komi!=null?cfg.komi:(n===2?3:1);players.forEach((P,p)=>{P.atp+=Math.round(p*km)})}
  players.forEach((P,p)=>{if(P.f.lucky){for(let k=0;k<P.f.lucky;k++){const u=unlockable(p).filter(x=>TREE[x].t===1);if(u.length)P.tr.add(RP(u))}}});
  newBand();log(`New dish: ${N}×${N} ${cfg.shape.toLowerCase()}, ${n} strains.`);startTurn();return S}
@@ -284,22 +324,27 @@ function checkDeath(o){const P=S.players[o];if(!P.alive||count(o)>0)return;
  if(has(o,'spore')&&!P.spored){P.spored=true;const n=S.N;for(let g=0;g<4000;g++){const r=RI(n-1),c=RI(n-1),cs=[0,1,n,n+1].map(x=>r*n+c+x);if(cs.every(j=>S.land[j]&&S.grid[j]<0)){cs.forEach(j=>S.grid[j]=o);log(`${P.name}'s endospores germinate!`);return}}}
  P.alive=false;log(`${P.name} is wiped out.`)}
 function act(p,i){const P=S.players[p];if(S.grid[i]===p||!S.land[i])return false;
- if(S.grid[i]===-1&&reachSet(p).has(i)){const c=growCost(p,i);if(P.atp<c)return false;P.atp-=c;P.grew=true;take(p,i);return true}
- const c=invCost(p,i);if(c!=null){if(P.atp<c)return false;P.atp-=c;P.inv++;if(isPred(p)&&P.pred<3){P.atp++;P.pred++}take(p,i);return true}
+ if(S.grid[i]===-1&&reachSet(p).has(i)){const raw=growRaw(p,i),c=growCost(p,i);if(P.atp<c)return false;if(raw>0&&c===0)P.free--;P.atp-=c;take(p,i);return true}
+ const c=invCost(p,i);if(c!=null){if(P.atp<c)return false;const o=S.grid[i],O=S.players[o];P.atp-=c;P.inv++;if(has(p,'pred')&&P.pred<3){P.atp++;P.pred++}
+  if(fl(p,'drain'))O.atp=Math.max(0,O.atp-1);if(fl(o,'prophage')){P.atp=Math.max(0,P.atp-3);O.atp=Math.min(capOf(o),O.atp+1)}if(fl(o,'shield'))O.shieldR=S.round;take(p,i);return true}
  if(S.grid[i]===-1&&canDisp(p)){P.atp-=3;P.disp=true;take(p,i);return true}return false}
 function actionCost(p,i){if(S.grid[i]===-1&&reachSet(p).has(i))return{k:'grow',c:growCost(p,i)};const c=invCost(p,i);if(c!=null)return{k:'invade',c};if(S.grid[i]===-1&&S.land[i]&&canDisp(p))return{k:'disperse',c:3};return null}
-function startTurn(){const p=S.turn,P=S.players[p];P.inv=0;P.pred=0;P.disp=false;P.conjUsed=false;P.grew=false;S.offer=null;
- const kills=(has(p,'h2o2')?1:0)+(fl(p,'acid')?1:0);
- for(let k=0;k<kills;k++){const c=[];S.grid.forEach((o,i)=>{if(o>=0&&o!==p&&!has(o,'cap')&&!fl(o,'wax')&&nb4(i).some(j=>S.grid[j]===p))c.push(i)});if(c.length){const i=RP(c),o=S.grid[i];S.grid[i]=-1;log(`${P.name} poisons a ${pname(o)} cell.`);checkDeath(o)}}
+function startTurn(){const p=S.turn,P=S.players[p];P.inv=0;P.pred=0;P.disp=false;P.conjUsed=false;P.free=fl(p,'freeGrows');S.offer=null;
+ const kills=has(p,'h2o2')?1:0;
+ for(let k=0;k<kills;k++){const c=[];S.grid.forEach((o,i)=>{if(o>=0&&o!==p&&!has(o,'cap')&&!fl(o,'wax')&&nb4(i).some(j=>S.grid[j]===p))c.push(i)});if(c.length){const i=RP(c),o=S.grid[i];S.grid[i]=-1;sosGain(o,1);log(`${P.name} poisons a ${pname(o)} cell.`);checkDeath(o)}}
  P.atp=Math.min(capOf(p),P.atp+income(p))}
+function sosGain(o,n){if(fl(o,'sos'))S.players[o].atp=Math.min(capOf(o),S.players[o].atp+2*n)}
 function nextTurn(){if(S.over)return;if(S.players.filter(p=>p.alive).length<=1)return end();let g=0;
  do{S.oi++;if(S.oi>=S.order.length){S.oi=0;S.round++;if(S.cfg.startRotate)S.order.push(S.order.shift());roundStart();if(S.over)return}S.turn=S.order[S.oi]}while(!S.players[S.turn].alive&&g++<60);startTurn()}
 function roundStart(){
- if(S.round===S.bandRound){let k=0;S.grid.forEach((o,i)=>{if(o<0||!inBand(i)||immune(o))return;if(halfWave(o)&&rnd()<.5)return;S.grid[i]=-1;k++});
-  log(`Antibiotic wave! ${k} cells killed.`);S.waveFlash=(S.waveFlash||0)+1;
+ if(S.round===S.bandRound){const killed=[];S.grid.forEach((o,i)=>{if(o<0||!inBand(i)||immune(o))return;if(halfWave(o)&&rnd()<.5)return;killed.push([i,o]);S.grid[i]=-1});
+  const lost={};killed.forEach(([,o])=>lost[o]=(lost[o]||0)+1);
+  S.players.forEach((P,p)=>{if(lost[p])sosGain(p,lost[p]);if(fl(p,'mrsa')){const e=killed.filter(x=>x[1]!==p).length;if(e>=3)P.atp=Math.min(capOf(p),P.atp+((e/3)|0))}});
+  killed.forEach(([i])=>{if(S.grid[i]!==-1)return;for(const j of nb4(i)){const q=S.grid[j];if(q>=0&&fl(q,'scavenger')){S.grid[i]=q;break}}});
+  log(`Antibiotic wave! ${killed.length} cells killed.`);S.waveFlash=(S.waveFlash||0)+1;
   S.players.forEach((P,p)=>{if(P.alive&&has(p,'integ')){const u=unlockable(p);if(u.length)gain(p,RP(u),'integron captured')}});
   S.bandRound+=4;newBand();S.players.forEach((_,i)=>checkDeath(i))}
- S.grid.forEach((o,i)=>{if(o>=0&&S.tile[i]==='phg'&&!phgSafe(o)&&rnd()<.25){S.grid[i]=-1;log(`A phage kills a ${pname(o)} cell.`);checkDeath(o)}});
+ S.grid.forEach((o,i)=>{if(o>=0&&S.tile[i]==='phg'&&!phgSafe(o)&&rnd()<.25){S.grid[i]=-1;sosGain(o,1);log(`A phage kills a ${pname(o)} cell.`);checkDeath(o)}});
  if(S.round>S.cfg.rounds||S.players.filter(p=>p.alive).length<=1||(!S.sim&&!humansAlive()))end()}
 function end(){if(S.over)return;S.over=true;const c=S.players.map((_,i)=>count(i)),b=Math.max(...c);S.winner=c.indexOf(b);log(`Game over. ${pname(S.winner)} wins with ${b} cells.`)}
 function checkWinNow(p){if(count(p)*2>=S.L){log(`${pname(p)} holds half the dish!`);end();return true}if(S.players.filter(x=>x.alive).length<=1){end();return true}return false}
@@ -310,9 +355,10 @@ function apply(a){if(!S||S.over)return false;
  if(a.p!==S.turn||!S.players[a.p].human)return false;const p=a.p,P=S.players[p];
  switch(a.t){
   case'act':if(S.offer||!act(p,a.i))return false;checkWinNow(p);break;
-  case'aim':if(S.offer||!has(p,'abx')||!S.land[a.i])return false;aimAt(p,a.i);log(`${P.name} aims the next antibiotic wave.`);break;
-  case'rot':if(!has(p,'abx'))return false;S.band.ax=S.band.ax==='r'?'c':'r';S.band.st=Math.min(S.band.st,S.N-S.band.w);break;
+  case'aim':if(S.offer||!fl(p,'abx')||!S.land[a.i])return false;aimAt(p,a.i);log(`${P.name} aims the next antibiotic wave.`);break;
+  case'rot':if(!fl(p,'abx'))return false;S.band.ax=S.band.ax==='r'?'c':'r';S.band.st=Math.min(S.band.st,S.N-S.band.w);break;
   case'mut':{if(S.offer)return false;const c=mutCost(p);if(P.atp<c)return false;const u=RS(unlockable(p)).slice(0,nOffers(p));if(!u.length)return false;P.atp-=c;P.bought++;S.offer={kind:'mut',list:u};break}
+  case'spore':if(S.offer||!canSpore(p)||!S.land[a.i]||S.grid[a.i]!==-1)return false;P.sporeAt=S.round+fl(p,'sporeDrop');take(p,a.i);log(`${P.name}'s spore lands on a new tile.`);checkWinNow(p);break;
   case'conj':if(S.offer||!canConj(p))return false;P.atp-=conjCost(p);P.conjUsed=true;S.offer={kind:'conj',list:RS(conjList(p)).slice(0,3)};break;
   case'pick':{if(!S.offer||!S.offer.list.includes(a.k))return false;const why={mut:'mutated',dna:'picked up free DNA',conj:'copied by conjugation'}[S.offer.kind];S.offer=null;gain(p,a.k,why);break}
   case'buy':{if(S.offer||S.cfg.mode!=='Pick from tree'||!unlockable(p).includes(a.k))return false;const c=traitCost(p,a.k);if(P.atp<c)return false;P.atp-=c;P.bought++;gain(p,a.k,'evolved');break}
@@ -330,9 +376,9 @@ function aiCtx(p){const n=S.N,dist=new Int16Array(n*n).fill(999),q=[];S.grid.for
  let leader=-1,lc=-1;cnts.forEach((c,i)=>{if(i!==p&&S.players[i].alive&&c>lc){lc=c;leader=i}});
  return{own,near,border,cells:cnts[p],leader,leaderGap:lc>avg*1.25,left:Math.max(1,S.cfg.rounds-S.round+1),waves:Math.max(0,Math.floor((S.cfg.rounds-S.bandRound)/4)+1),g:gluOwned(p)}}
 function traitVal(p,k,c){c=c||CTX||aiCtx(p);const L=c.left*.6,o=t=>(c.own[t]||0),nr=t=>(c.near[t]||0)*.5,bandHit=c.cells*S.band.w/S.N;
- const enemyBio=touching(p).some(q=>has(q,'bio')||has(q,'cap')||fl(q,'slime'));
+ const enemyBio=touching(p).some(q=>has(q,'bio')||has(q,'cap')||fl(q,'thick'));
  const v={lac:(o('lac')+nr('lac'))*(c.g>=3?1:2)*L,sid:(o('fe')+nr('fe'))*3*L,pts:(o('glu')+nr('glu'))*L,crp:has(p,'lac')&&c.g>=3?o('lac')*L:.5,aero:(o('o2')+nr('o2'))*2*L,fast:2*L,qs:c.cells/8*L,stor:has(p,'fast')?3:1,
-  tox:c.border?Math.min(c.border,4)*.5*L:1,prot:enemyBio?L:.4,h2o2:c.border?1.2*c.left:.3,t6:c.border?2.5*L:.5,pred:c.border?1.5*L:.5,abx:c.waves*(bandHit*1.5+3),
+  tox:c.border?Math.min(c.border,4)*.5*L:1,prot:enemyBio?L:.4,h2o2:c.border?1.2*c.left:.3,t6:c.border?2.5*L:.5,pred:c.border?1.5*L:.5,arsenal:c.border?3*L:.5,
   mot:3+(c.left>8?2:0),twi:2.5,chemo:(o('glu')+nr('glu')+nr('lac')+nr('fe')+nr('o2'))*.6+1,swarm:3,disp:c.left>5?4:1,
   bio:c.border*.12*c.left+1,cap:c.border*.07*c.left+.5,res:c.waves*bandHit*(warnOn()?2:1)-(c.left*.6),comp:has(p,'res')?c.left*.6:0,pers:c.waves*bandHit*.5,cr:o('phg')*1.5*L*.4+.5,
   spore:c.cells<12?5:2,mbio:c.border*.1*c.left,compt:2,conj:conjList(p).length*1.2,integ:c.waves*4}[k];
@@ -352,7 +398,8 @@ function aiMoveVal(p,i,kind,c,lv,cnts){const k=S.tile[i];let w=1+.05*c.left;
  return w}
 function aiTurn(){if(S.over)return;const p=S.turn,P=S.players[p];if(P.human)return;const lv=S.cfg.diff==='Easy'?0:S.cfg.diff==='Hard'?2:1;
  CTX=aiCtx(p);
- if(has(p,'abx')){let best=null,bv=-1e9;for(const ax of['r','c'])for(let st=0;st<=S.N-S.band.w;st++){let v=0;S.grid.forEach((o,i)=>{if(o<0||o===p||immune(o))return;const x=ax==='r'?((i/S.N)|0):i%S.N;if(x>=st&&x<st+S.band.w)v+=(o===CTX.leader?1.5:1)*(halfWave(o)?.5:1)});if(v>bv){bv=v;best={ax,st}}}if(best){S.band.ax=best.ax;S.band.st=best.st}}
+ if(fl(p,'abx')){let best=null,bv=-1e9;for(const ax of['r','c'])for(let st=0;st<=S.N-S.band.w;st++){let v=0;S.grid.forEach((o,i)=>{if(o<0||o===p||immune(o))return;const x=ax==='r'?((i/S.N)|0):i%S.N;if(x>=st&&x<st+S.band.w)v+=(o===CTX.leader?1.5:1)*(halfWave(o)?.5:1)});if(v>bv){bv=v;best={ax,st}}}if(best){S.band.ax=best.ax;S.band.st=best.st}}
+ if(canSpore(p)){let best=-1,bv=-1e9;S.grid.forEach((o,i)=>{if(o!==-1||!S.land[i]||nb4(i).some(j=>S.grid[j]>=0))return;const k=S.tile[i];const v=(k?tileVal(p,k,CTX.g)+(k==='dna'?4:0)+(k==='lac'||k==='fe'?1:0):0)+rnd()*.5;if(v>bv){bv=v;best=i}});if(best>=0){P.sporeAt=S.round+fl(p,'sporeDrop');take(p,best)}}
  const reserve=aiTraits(p,lv);
  if(canConj(p)&&lv>0){const l=conjList(p).sort((a,b)=>traitVal(p,b)-traitVal(p,a));if(traitVal(p,l[0])>conjCost(p)*1.2){P.atp-=conjCost(p);P.conjUsed=true;gain(p,l[0],'copied by conjugation')}}
  for(let g=0;g<150&&!S.over;g++){CTX.g=gluOwned(p);const cnts=S.players.map((_,q)=>count(q)),budget=P.atp-reserve;let best=null,br=-1e9;
@@ -362,10 +409,44 @@ function aiTurn(){if(S.over)return;const p=S.turn,P=S.players[p];if(P.human)retu
   if(canDisp(p)&&lv>0)S.grid.forEach((o,i)=>{if(o===-1&&S.land[i]&&S.tile[i]&&S.tile[i]!=='phg')tryI(i,'disperse',3)});
   if(best==null)break;if(!act(p,best))break;if(checkWinNow(p)){CTX=null;return}}
  CTX=null;if(!S.over)nextTurn()}
+/* Live effect of a trait for player p right now: {t:text, v:ATP per turn or null} */
+const pl=(n,w,ws)=>`${n} ${n===1?w:(ws||w+'s')}`;
+function traitNow(p,k){const P=S.players[p],cells=count(p),g=gluOwned(p),own=t=>{let n=0;S.grid.forEach((o,i)=>{if(o===p&&S.tile[i]===t)n++});return n};
+ const reachWith=()=>{const had=P.tr.has(k);if(!had)P.tr.add(k);const n=reachSet(p).size;if(!had)P.tr.delete(k);return n},inBandMine=()=>{let n=0;S.grid.forEach((o,i)=>{if(o===p&&inBand(i))n++});return n};
+ const enemies=touching(p);
+ switch(k){
+  case'lac':{const n=own('lac'),per=g>=3&&!has(p,'crp')?1:2;return n?{t:`You own ${n} Lactose: +${n*per} ATP per turn${per===1?' (halved, you own 3+ Glucose)':''}.`,v:n*per}:{t:'You own no Lactose yet.',v:0}}
+  case'sid':{const n=own('fe');return{t:n?`You own ${n} Iron: +${n*3} ATP per turn.`:'You own no Iron yet.',v:n*3}}
+  case'pts':{const n=fl(p,'glu1')?0:own('glu');return{t:fl(p,'glu1')?'No effect for Anabaena.':n?`You own ${n} Glucose: +${n} extra ATP per turn.`:'You own no Glucose yet.',v:n}}
+  case'crp':{const n=own('lac');const on=g>=3&&n;return{t:on?`Your ${n} Lactose give +${n} more ATP per turn.`:'No effect right now (you own fewer than 3 Glucose or no Lactose).',v:on?n:0}}
+  case'aero':{const n=own('o2');return{t:n?`You own ${pl(n,'Oxygen pocket')}: +${n*2} extra ATP per turn.`:'You own no Oxygen pockets yet.',v:n*2}}
+  case'fast':return{t:'+2 ATP every turn.',v:2};
+  case'qs':return{t:`You have ${cells} cells: +${(cells/8)|0} ATP per turn.`,v:(cells/8)|0};
+  case'stor':return{t:`You could bank ${capOf(p)+(has(p,'stor')?0:15)} ATP instead of ${capOf(p)-(has(p,'stor')?15:0)}.`,v:null};
+  case'tox':return{t:enemies.length?`${pl(enemies.length,'enemy colony','enemy colonies')} ${enemies.length===1?'touches':'touch'} you. Each invasion costs 1 less.`:'No enemy touches you yet.',v:null};
+  case'prot':{const n=enemies.filter(q=>has(q,'bio')||has(q,'cap')||fl(q,'thick')).length;return{t:n?`${pl(n,'neighbouring enemy','neighbouring enemies')} ${n===1?'has':'have'} shields you would ignore.`:'No neighbour has shields right now.',v:null}}
+  case'h2o2':{let n=0;S.grid.forEach((o,i)=>{if(o>=0&&o!==p&&!has(o,'cap')&&!fl(o,'wax')&&nb4(i).some(j=>S.grid[j]===p))n++});return{t:n?`${n} enemy cells touch you and could be poisoned.`:'No enemy cell touches you yet.',v:null}}
+  case't6':return{t:'Your first invasion each turn costs 0.',v:null};
+  case'pred':return{t:'Each invasion gives 1 ATP back (up to 3 per turn).',v:null};
+  case'arsenal':return{t:'Every invasion costs 1 ATP.',v:null};
+  case'mot':case'twi':case'swarm':{const now=reachSet(p).size,w=reachWith();return{t:has(p,k)?`You can reach ${now} empty tiles.`:`You could reach ${w} empty tiles instead of ${now}.`,v:null}}
+  case'chemo':{let n=0;reachSet(p).forEach(i=>{if(S.tile[i])n++});return{t:n?`${n} special tiles in reach would cost 0.`:'No special tile in reach right now.',v:null}}
+  case'disp':return{t:'Once per turn, grow onto any empty tile for 3 ATP.',v:null};
+  case'bio':case'cap':return{t:`Invading a plain cell of yours would cost +${k==='bio'?2:1} ATP.`,v:null};
+  case'res':{const n=inBandMine();return{t:warnOn()?`${n} of your cells are in next round's wave.`:`Next wave in ${S.bandRound-S.round} rounds. You have ${cells} cells.`,v:has(p,'comp')?null:-1}}
+  case'comp':return{t:has(p,'res')?'Saves 1 ATP every turn.':'Only matters once you have Resistance plasmid.',v:has(p,'res')?1:0};
+  case'pers':{const n=inBandMine();return{t:warnOn()?`About ${Math.round(n/2)} of your ${n} cells in the coming wave would survive.`:'Half your cells survive each wave.',v:null}}
+  case'cr':{const n=own('phg');return{t:n?`You own ${pl(n,'Phage hotspot')}.`:'You own no Phage hotspots.',v:null}}
+  case'spore':return{t:'Backup life if you are wiped out.',v:null};
+  case'mbio':{let n=0;S.grid.forEach((o,i)=>{if(o===p&&ownNb(p,i)>=3)n++});return{t:`${n} of your cells have 3+ neighbours of yours.`,v:null}}
+  case'compt':return{t:'Mutate shows 4 choices instead of 3.',v:null};
+  case'conj':return{t:`Enemies touching you have ${pl(conjList(p).length,'trait')} you do not.`,v:null};
+  case'integ':return{t:`Next free trait at the wave in ${S.bandRound-S.round} rounds.`,v:null};
+ }return{t:'',v:null}}
 function hash(){let h=2166136261;const add=v=>{h^=v;h=Math.imul(h,16777619)};S.grid.forEach(o=>add(o+2));S.players.forEach(P=>{add(P.atp);add(P.tr.size)});add(S.round);add(S.turn);add(S.rs);return h>>>0}
 const COLORN=['Blue','Red','Green','Yellow','Purple','Orange','Teal','Pink','Brown','Gray'];
 root.PE={TL,BR,TC,TREE,SPECIES,FOUNDERS,AUTO,COLORN,newGame,bind:s=>{S=s},get S(){return S},apply,aiTurn,nextTurn,hash,
- count,income,incomeParts,capOf,reachSet,invCost,actionCost,growCost,unlockable,mutCost,traitCost,nOffers,canConj,conjList,conjCost,has,fl,tileVal,gluOwned,warnOn,inBand,nb4,ownNb,traitVal,genMap};
+ count,income,incomeParts,capOf,reachSet,invCost,actionCost,growCost,unlockable,mutCost,traitCost,nOffers,canConj,conjList,conjCost,has,fl,tileVal,gluOwned,warnOn,inBand,nb4,ownNb,traitVal,genMap,traitNow,canSpore,growRaw};
 })(typeof window!=='undefined'?window:globalThis);
 
 </script>
@@ -375,9 +456,9 @@ root.PE={TL,BR,TC,TREE,SPECIES,FOUNDERS,AUTO,COLORN,newGame,bind:s=>{S=s},get S(
 /* =========================================================
    ONLINE PLAY SETUP: paste your Firebase web config here.
    (Firebase console: Project settings, General, Your apps, Web app, SDK setup and configuration, Config.)
-   Leave apiKey as 'PASTE' to keep online play turned off.
+   Only databaseURL is required. Leave databaseURL empty to keep online play turned off.
    ========================================================= */
-const FIREBASE_CONFIG={apiKey:'PASTE',authDomain:'',databaseURL:'',projectId:'',storageBucket:'',messagingSenderId:'',appId:''};
+const FIREBASE_CONFIG={apiKey:'',authDomain:'petri-8cd94.firebaseapp.com',databaseURL:'https://petri-8cd94-default-rtdb.firebaseio.com',projectId:'petri-8cd94',storageBucket:'',messagingSenderId:'',appId:''};
 
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -426,7 +507,7 @@ const R2=(()=>{const wrap=$('#board'),cv=document.createElement('canvas'),g=cv.g
   g.globalAlpha=1;
   if(s>=9)for(let i=0;i<N*N;i++){const k=S.tile[i];if(!k||!S.land[i])continue;const o=S.grid[i],r=(i/N)|0,c=i%N;const col=o>=0?(lum(colOf(o))>.6?'rgba(20,24,28,.7)':'rgba(255,255,255,.85)'):th.icon;icon(k,X(c)+s/2,Y(r)+s/2,s,col)}
   const cur=S.players[S.turn],me=UI.canAct();
-  if(me&&!S.offer&&!UI.aim){sel();const p=S.turn,rs=PE.reachSet(p);g.fillStyle=COL[cur.ci];g.globalAlpha=.75;rs.forEach(i=>{const r=(i/N)|0,c=i%N;g.beginPath();g.arc(X(c)+s/2,Y(r)+s/2,Math.max(1.6,s*.09),0,7);g.fill()});g.globalAlpha=1;
+  if(me&&!S.offer&&!UI.aim&&!UI.spore){sel();const p=S.turn,rs=PE.reachSet(p);g.fillStyle=COL[cur.ci];g.globalAlpha=.75;rs.forEach(i=>{const r=(i/N)|0,c=i%N;g.beginPath();g.arc(X(c)+s/2,Y(r)+s/2,Math.max(1.6,s*.09),0,7);g.fill()});g.globalAlpha=1;
    g.strokeStyle=th.bad;g.lineWidth=Math.max(1.4,s*.07);S.grid.forEach((o,i)=>{if(o>=0&&o!==p&&PE.invCost(p,i)!=null){const r=(i/N)|0,c=i%N,x=X(c),y=Y(r),q=s*.22,m=s*.14;g.beginPath();for(const[ax,ay,dx,dy]of[[x+m,y+m,1,1],[x+s-m,y+m,-1,1],[x+m,y+s-m,1,-1],[x+s-m,y+s-m,-1,-1]]){g.moveTo(ax,ay+dy*q);g.lineTo(ax,ay);g.lineTo(ax+dx*q,ay)}g.stroke()}})}
   const showBand=PE.warnOn()||UI.aim||(S.waveFlashT&&now-S.waveFlashT<1500);
   if(showBand){const b=S.band;let x,y,w,h;if(b.ax==='r'){x=X(0)-s*.4;w=N*s+s*.8;y=Y(b.st);h=b.w*s}else{y=Y(0)-s*.4;h=N*s+s*.8;x=X(b.st);w=b.w*s}
@@ -436,14 +517,14 @@ const R2=(()=>{const wrap=$('#board'),cv=document.createElement('canvas'),g=cv.g
   if(hover>=0){const r=(hover/N)|0,c=hover%N;g.strokeStyle=th.ink;g.globalAlpha=.75;g.lineWidth=2;g.beginPath();g.roundRect(X(c)+1,Y(r)+1,s-2,s-2,rr);g.stroke();g.globalAlpha=1}}
  let raf=0;function loop(t){raf=requestAnimationFrame(loop);draw(t)}raf=requestAnimationFrame(loop);
  // input
- const ptrs=new Map();let down=null,moved=false,pinch=0;
+ const ptrs=new Map();let down=null,moved=false,pinch=0,tapSel=-1;
  cv.addEventListener('contextmenu',e=>e.preventDefault());
- cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});down={x:e.clientX,y:e.clientY,b:e.button};moved=false;if(ptrs.size===2){const[a,b]=[...ptrs.values()];pinch=Math.hypot(a.x-b.x,a.y-b.y)}});
+ cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});down={x:e.clientX,y:e.clientY,b:e.button,pt:e.pointerType};moved=false;if(ptrs.size===2){const[a,b]=[...ptrs.values()];pinch=Math.hypot(a.x-b.x,a.y-b.y)}});
  cv.addEventListener('pointermove',e=>{const rc=cv.getBoundingClientRect(),x=e.clientX-rc.left,y=e.clientY-rc.top,pr=ptrs.get(e.pointerId);
   if(pr){const dx=e.clientX-pr.x,dy=e.clientY-pr.y;pr.x=e.clientX;pr.y=e.clientY;if(Math.hypot(e.clientX-down.x,e.clientY-down.y)>6)moved=true;
    if(ptrs.size===2){const[a,b]=[...ptrs.values()],d=Math.hypot(a.x-b.x,a.y-b.y);if(pinch)zoomAt(x,y,d/pinch);pinch=d}else if(moved){v.ox+=dx;v.oy+=dy;dirty=true}UI.tip(-1)}
   else{const i=cellAt(x,y);if(i!==hover){hover=i;dirty=true}UI.tip(i,e.clientX,e.clientY)}});
- cv.addEventListener('pointerup',e=>{ptrs.delete(e.pointerId);if(ptrs.size<2)pinch=0;if(!moved&&down&&down.b===0&&!ptrs.size){const rc=cv.getBoundingClientRect(),i=cellAt(e.clientX-rc.left,e.clientY-rc.top);if(i>=0)UI.click(i)}down=null});
+ cv.addEventListener('pointerup',e=>{ptrs.delete(e.pointerId);if(ptrs.size<2)pinch=0;if(!moved&&down&&down.b===0&&!ptrs.size){const rc=cv.getBoundingClientRect(),i=cellAt(e.clientX-rc.left,e.clientY-rc.top);if(i>=0){if(down.pt==='touch'&&tapSel!==i){tapSel=i;hover=i;dirty=true;UI.tip(i,e.clientX,e.clientY)}else{tapSel=-1;UI.click(i)}}}down=null});
  cv.addEventListener('pointerleave',()=>{hover=-1;dirty=true;UI.tip(-1)});
  function zoomAt(x,y,f){const ns=Math.max(4,Math.min(90,v.s*f));f=ns/v.s;v.ox=x-(x-v.ox)*f;v.oy=y-(y-v.oy)*f;v.s=ns;dirty=true}
  cv.addEventListener('wheel',e=>{e.preventDefault();const rc=cv.getBoundingClientRect();zoomAt(e.clientX-rc.left,e.clientY-rc.top,Math.pow(.9985,e.deltaY))},{passive:false});
@@ -491,8 +572,8 @@ const VIEW={mode:'2d',r(){return this.mode==='3d'&&R3?R3:R2},mark(){R2.mark();R3
 
 /* ---------------- networking (Firebase, like the class example) ---------------- */
 const params=new URLSearchParams(location.search);const LOCALNET=params.has('local');
-const onlineReady=()=>LOCALNET||(FIREBASE_CONFIG.apiKey&&FIREBASE_CONFIG.apiKey!=='PASTE');
-const FirebaseNet={async init(){await loadScripts(['https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js','https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js']);firebase.initializeApp(FIREBASE_CONFIG);this.db=firebase.database();return myUid()},
+const onlineReady=()=>LOCALNET||!!FIREBASE_CONFIG.databaseURL;
+const FirebaseNet={async init(){await loadScripts(['https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js','https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js']);firebase.initializeApp(Object.fromEntries(Object.entries(FIREBASE_CONFIG).filter(([,v])=>v)));this.db=firebase.database();return myUid()},
  ref(p){return this.db.ref(p)},get(p){return this.ref(p).once('value').then(s=>s.val())},set(p,v){return this.ref(p).set(v)},transact(p,fn){return this.ref(p).transaction(fn)},
  watch(c,cb){const r=this.ref('petri/'+c),h=s=>cb(s.val());r.on('value',h);return()=>r.off('value',h)},
  presence(c,id){const r=this.ref(`petri/${c}/presence/${id}`);this.ref('.info/connected').on('value',s=>{if(s.val()){r.onDisconnect().remove();r.set(true)}})},
@@ -524,10 +605,10 @@ async function joinGame(code,name){code=(code||'').toUpperCase().trim();if(code.
 function joinWatch(code){NET.on=true;NET.code=code;store.set('petri-code',code);NET.applied=0;NET.started=false;NET.pending=-1;NET.unwatch&&NET.unwatch();NET.net.presence(code,NET.uid);NET.unwatch=NET.net.watch(code,onNet);showLobby()}
 function leaveOnline(){if(NET.code&&NET.g){if(NET.g.status==='lobby'){if(NET.g.host===NET.uid)NET.net.set('petri/'+NET.code,null);else NET.net.transact('petri/'+NET.code,cur=>{if(cur===null)return null;cur.seats=asArr(cur.seats).map(s=>s.uid===NET.uid?{kind:'open',sp:'random',fm:'random'}:s);return cur})}NET.net.set(`petri/${NET.code}/presence/${NET.uid}`,null)}
  NET.unwatch&&NET.unwatch();Object.assign(NET,{on:false,code:null,g:null,unwatch:null,applied:0,started:false,pending:-1});store.set('petri-code',null);S=null;refresh()}
-function onNet(g){NET.g=g;if(!g){if(NET.on){toast('The game was closed.');leaveOnline();showMenu()}return}
- if(g.status==='lobby'){if(modalKind==='lobby')renderLobby();return}
+function onNet(g){NET.g=g;if(!g){if(NET.on){toast('The game was closed.');leaveOnline();showOnline()}return}
+ if(g.status==='lobby'){if(screenKind==='lobby')renderLobby();return}
  if(!NET.started){NET.started=true;const seats=asArr(g.seats).map(s=>({human:s.kind==='human',uid:s.uid||null,name:s.name||'',sp:s.sp||'random',fm:s.fm||'random'}));
-  S=PE.newGame(g.cfg,seats,g.seed);NET.applied=0;closeModal();VIEW.r().build();VIEW.set(VIEW.mode)}
+  S=PE.newGame(g.cfg,seats,g.seed);NET.applied=0;closeModal();closeScreen();VIEW.r().build();VIEW.set(VIEW.mode)}
  pump()}
 async function sendNet(a){const log=asArr(NET.g&&NET.g.log),n=log.length;if(NET.pending>=0)return;NET.pending=n;sel();a.h=PE.hash();
  const r=await NET.net.transact(`petri/${NET.code}/log`,cur=>{const l=asArr(cur);if(l.length!==n)return undefined;l.push(a);return l});if(!r.committed)NET.pending=-1;refresh()}
@@ -538,7 +619,7 @@ let cfg={n:4,shape:'Circle',size:'Auto',custom:20,rounds:20,mode:'Random offers'
 let seats=[];function ensureSeats(){while(seats.length<10)seats.push({human:seats.length===0,sp:'random',fm:'random'})}ensureSeats();
 let aiTimer=null,lastTurnKey='',endShown=false;
 const aiDelay=()=>Math.max(250,650-S.players.length*40);
-function startLocal(c,st,seed){NET.on=false;S=PE.newGame(c,st,seed??(Math.random()*2**31)>>>0);endShown=false;closeModal();VIEW.r().build();VIEW.set(VIEW.mode);pump()}
+function startLocal(c,st,seed){NET.on=false;S=PE.newGame(c,st,seed??(Math.random()*2**31)>>>0);endShown=false;closeModal();closeScreen();VIEW.r().build();VIEW.set(VIEW.mode);pump()}
 function pump(){if(!S)return refresh();sel();
  if(NET.on){const log=asArr(NET.g&&NET.g.log);while(NET.applied<log.length&&!S.over){const P=S.players[S.turn],a=log[NET.applied];if(!P.human)break;
    if(a.h!=null&&a.h!==PE.hash()&&!NET.bad){NET.bad=true;$('#netbad').style.display='block';$('#netbad').textContent='Out of sync with the other players. Reload the page to fix it.'}
@@ -555,16 +636,16 @@ function banner(t,c){const b=$('#banner');b.textContent=t;b.style.color=c;b.styl
 
 /* ---------------- HUD ---------------- */
 const pcName=p=>`<b style="color:${colOf(p)}">${esc(S.players[p].name)}</b>`;
-const UI={aim:false,
+const UI={aim:false,spore:false,
  me(){if(!S)return -1;if(!NET.on)return S.players[S.turn].human?S.turn:S.players.findIndex(p=>p.human);return S.players.findIndex(p=>p.uid===NET.uid)},
  canAct(){if(!S||S.over)return false;const P=S.players[S.turn];if(!P.human)return false;if(NET.on)return P.uid===NET.uid&&NET.pending<0;return true},
  tip(i,x,y){const t=$('#tip');if(!S||i<0){t.style.display='none';return}sel();const o=S.grid[i],k=S.tile[i],p=S.turn;let h='';
   h+=o>=0?`<div>${pcName(o)} <span class="mut"><i>${S.players[o].sp.n}</i></span></div>`:'<div class="mut">Empty agar</div>';
   if(k){const v=PE.tileVal(p,k,PE.gluOwned(p));h+=`<div><b>${TL[k].n}</b>: ${TL[k].d}</div>`;if(['glu','lac','fe','o2'].includes(k)&&S.players[p].human)h+=`<div class="mut">Worth +${v} ATP per turn to ${S.players[p].name==='You'?'you':esc(S.players[p].name)} right now.</div>`}
-  if(UI.canAct()&&!S.offer){if(UI.aim)h+=`<div style="color:var(--bad)">Click to aim the wave here.</div>`;else{const a=PE.actionCost(p,i);if(a)h+=`<div style="color:${a.k==='invade'?'var(--bad)':colOf(p)};font-weight:600">${{grow:'Grow',invade:'Invade',disperse:'Disperse'}[a.k]}: ${a.c} ATP</div>`;else if(o>=0&&o!==p&&PE.has(o,'mbio')&&PE.ownNb(o,i)>=3&&PE.nb4(i).some(j=>S.grid[j]===p))h+='<div class="mut">Protected by mature biofilm.</div>'}}
+  if(UI.canAct()&&!S.offer){if(UI.aim)h+=`<div style="color:var(--bad)">Click to aim the wave here.</div>`;else if(UI.spore)h+=o<0?`<div style="font-weight:600">Click to drop a spore here.</div>`:'<div class="mut">Pick an empty tile.</div>';else{const a=PE.actionCost(p,i);if(a)h+=`<div style="color:${a.k==='invade'?'var(--bad)':colOf(p)};font-weight:600">${{grow:'Grow',invade:'Invade',disperse:'Disperse'}[a.k]}: ${a.c} ATP</div>`;else if(o>=0&&o!==p&&PE.has(o,'mbio')&&PE.ownNb(o,i)>=3&&PE.nb4(i).some(j=>S.grid[j]===p))h+='<div class="mut">Protected by mature biofilm.</div>'}}
   t.innerHTML=h;t.style.display='block';t.style.left=Math.min(innerWidth-290,x+16)+'px';t.style.top=Math.min(innerHeight-120,y+16)+'px'},
- click(i){if(!UI.canAct()||S.offer)return;if(UI.aim){UI.aim=false;send({t:'aim',i});return}send({t:'act',i})}};
-function renderHUD(){if(!S){$('#roundbox').innerHTML='';$('#players').innerHTML='';$('#log').innerHTML='';$('#bar').innerHTML='<span class="mut">Open the menu to start a game.</span>';$('#offer').innerHTML='';renderTree();return}
+ click(i){if(!UI.canAct()||S.offer)return;if(UI.aim){UI.aim=false;send({t:'aim',i});return}if(UI.spore){UI.spore=false;send({t:'spore',i});return}send({t:'act',i})}};
+function renderHUD(){if(!S){$('#roundbox').innerHTML='';$('#players').innerHTML='';$('#log').innerHTML='';$('#bar').innerHTML='<span class="mut">Open the Menu to start a game.</span>';$('#offer').innerHTML='';renderTree();return}
  sel();const p=S.turn,cur=S.players[p],w=PE.warnOn();
  $('#roundbox').innerHTML=`<span>Round <b>${Math.min(S.round,S.cfg.rounds)}</b> of ${S.cfg.rounds}</span><span class="${w?'warn':''}">${w?'<b class="warn">Antibiotic wave next round</b> (red band)':`Antibiotic wave in ${S.bandRound-S.round} rounds`}</span>${NET.on?`<span>Game <b>${NET.code}</b></span>`:''}`;
  const order=S.players.map((_,i)=>i).sort((a,b)=>PE.count(b)-PE.count(a));
@@ -578,18 +659,24 @@ function renderHUD(){if(!S){$('#roundbox').innerHTML='';$('#players').innerHTML=
   <div class="atp"><b>${cur.atp}</b><span class="mut">of ${PE.capOf(p)} ATP</span></div><div class="chips" title="Income next turn">${parts.map(x=>`<span class="chip">${x[0]} ${x[1]>0?'+':''}${x[1]}</span>`).join('')}</div><div class="sp"></div>
   ${S.cfg.mode!=='Pick from tree'?`<button class="btn" data-a="mut" ${cur.atp<mc||!PE.unlockable(p).length||S.offer?'disabled':''} title="Pay ATP, then choose 1 of ${PE.nOffers(p)} random traits">Mutate (${mc} ATP)</button>`:`<button class="btn" data-a="tree">Evolve</button>`}
   ${PE.has(p,'conj')?`<button class="btn" data-a="conj" ${PE.canConj(p)&&!S.offer?'':'disabled'} title="Copy a trait from an enemy touching you">Conjugate (3 ATP)</button>`:''}
-  ${PE.has(p,'abx')?`<button class="btn ${UI.aim?'on':''}" data-a="aim" title="Choose where the next wave lands">${UI.aim?'Click the dish':'Aim wave'}</button><button class="btn" data-a="rot" title="Turn the wave band 90 degrees">Rotate wave</button>`:''}
+  ${PE.fl(p,'sporeDrop')?(PE.canSpore(p)?`<button class="btn ${UI.spore?'on':''}" data-a="spore" title="Start a new cell anywhere on the dish">${UI.spore?'Click an empty tile':'Spore drop (free)'}</button>`:`<button class="btn" disabled>Spore drop in ${S.players[p].sporeAt-S.round} rounds</button>`):''}
+  ${PE.fl(p,'abx')?`<button class="btn ${UI.aim?'on':''}" data-a="aim" title="Choose where the next wave lands">${UI.aim?'Click the dish':'Aim wave'}</button><button class="btn" data-a="rot" title="Turn the wave band 90 degrees">Rotate wave</button>`:''}
   <button class="btn pri" data-a="end" ${S.offer?'disabled':''}>End turn</button>`}
  const of=$('#offer');if(my&&S.offer){const t={mut:'Mutation: choose one',dna:'Free DNA: choose one',conj:'Conjugation: copy one'}[S.offer.kind];
-  of.innerHTML=`<div class="offerTitle">${t}</div>`+S.offer.list.map(k=>`<div class="card" data-a="pick" data-v="${k}"><div class="k">${BR[TREE[k].b]}, tier ${TREE[k].t}</div><b>${TREE[k].n}</b><div class="w">${TREE[k].w}</div><div>${TREE[k].d}</div></div>`).join('')}
+  of.innerHTML=`<div class="offerTitle">${t}</div>`+S.offer.list.map(k=>`<div class="card" data-a="pick" data-v="${k}"><div class="k">${BR[TREE[k].b]}, tier ${TREE[k].t}</div><b>${TREE[k].n}</b><div class="w">${TREE[k].w}</div><div>${TREE[k].d}</div><div class="mut" style="font-size:12px;margin-top:6px;border-top:1px solid var(--line);padding-top:6px">Right now: ${PE.traitNow(p,k).t}</div></div>`).join('')}
  else if(S.offer&&!my)of.innerHTML=`<div class="offerTitle mut">${esc(cur.name)} is choosing a trait…</div>`;else of.innerHTML='';
  renderTree()}
-let treeOpen=false;
+let treeOpen=false,treeSel=null;
 function renderTree(){const el=$('#tree');if(!S){el.innerHTML='';return}sel();const vp=UI.me()>=0?UI.me():S.turn,P=S.players[vp],u=new Set(PE.unlockable(vp)),direct=S.cfg.mode==='Pick from tree',my=UI.canAct()&&vp===S.turn&&!S.offer;
- el.innerHTML=`<div class="row"><b style="font-size:18px">Mutation tree</b><span class="dot" style="background:${COL[P.ci]}"></span><b>${esc(P.name)}</b><span class="mut">${direct?'Click a highlighted trait to buy it.':`Press Mutate (${PE.mutCost(vp)} ATP) to get ${PE.nOffers(vp)} random choices from the highlighted traits.`} Dashed traits need one of the listed traits first.</span><div class="sp"></div><button class="btn" data-a="tree">Close</button></div>
- <div class="grid2" style="margin-top:10px"><div class="info"><b>Species: <i>${P.sp.n}</i></b><div>${P.sp.w}</div><div style="color:var(--ink)"><b>${P.sp.a}.</b> ${P.sp.d}</div></div><div class="info"><b>Starting mutation: ${P.fm.n}</b><div>${P.fm.w}</div><div style="color:var(--ink)">${P.fm.d}</div></div></div>
- <div class="tcols">${BR.map((b,bi)=>`<div class="tcol"><h4>${b}</h4>${Object.entries(TREE).filter(([k,v])=>v.b===bi).map(([k,v])=>{const own=P.tr.has(k),can=u.has(k),buy=direct&&my&&can&&P.atp>=PE.traitCost(vp,k);
-  return `<div class="node ${own?'own':can?'can':''} ${buy?'buy':''}" ${buy?`data-a="buy" data-v="${k}"`:''} style="${own?`border-color:${COL[P.ci]};background:${COL[P.ci]}22`:''}"><span class="t">${own?'owned':'T'+v.t+(direct?' · '+PE.traitCost(vp,k)+' ATP':'')}</span><b>${v.n}</b><div class="w">${v.w}</div><div class="d">${v.d}</div>${v.q.length&&!own&&!can?`<div class="req">Needs: ${v.q.map(x=>TREE[x].n).join(' or ')}</div>`:''}</div>`}).join('')}</div>`).join('')}</div>`}
+ if(!treeSel||!TREE[treeSel])treeSel=[...u][0]||Object.keys(TREE)[0];
+ const node=(k,v)=>{const own=P.tr.has(k),can=u.has(k),bv=PE.traitNow(vp,k).v;const badge=bv?`<span class="bg" style="background:${bv>0?'var(--acc)':'var(--bad)'};color:var(--accInk)">${bv>0?'+':''}${bv}</span>`:'<span></span>';
+  return `<button class="tn ${own?'own':can?'can':'lock'} ${treeSel===k?'sel':''}" data-a="tsel" data-v="${k}" style="${own?`background:${COL[P.ci]}26;border-color:${COL[P.ci]}`:''}"><span class="tt">${own?'✓':v.t}</span><span class="nn">${v.n}</span>${badge}<span class="ee">${v.e}</span></button>`};
+ const k=treeSel,v=TREE[k],own=P.tr.has(k),can=u.has(k),now=PE.traitNow(vp,k),cost=PE.traitCost(vp,k);
+ const action=own?'<div class="mut">You have this trait.</div>':!can?`<div class="mut">Locked. First get ${v.q.map(x=>TREE[x].n).join(' or ')}.</div>`:direct?(my?`<button class="btn pri" data-a="buy" data-v="${k}" ${P.atp>=cost?'':'disabled'}>Buy for ${cost} ATP</button>`:`<div class="mut">Costs ${cost} ATP on your turn.</div>`):`<div class="mut">You can get this now. Press Mutate (${PE.mutCost(vp)} ATP) and it may be one of the choices.</div>`;
+ el.innerHTML=`<div class="row"><b style="font-size:18px">Mutation tree</b><span class="dot" style="background:${COL[P.ci]}"></span><b>${esc(P.name)}</b><span class="mut" style="font-size:13px">Outlined: you can get it now. Faded: locked. Number tag: ATP per turn it gives you right now. Click a trait for details.</span><div class="sp"></div><button class="btn" data-a="tree">Close (T)</button></div>
+ <div class="tbody"><div class="tcols2">${BR.map((b,bi)=>`<div><h4>${b}</h4>${Object.entries(TREE).filter(([,x])=>x.b===bi).sort((a,b)=>a[1].t-b[1].t).map(([kk,x])=>node(kk,x)).join('')}</div>`).join('')}</div>
+ <div class="tdet"><div class="k">${BR[v.b]}, tier ${v.t}</div><h3>${v.n}</h3><div class="lab">What it is</div><div>${v.w}</div><div class="lab">Effect</div><div>${v.d}</div><div class="now"><div class="lab" style="margin-top:0">Right now for you</div>${now.t}</div>${action}
+ <div class="lab" style="margin-top:16px">Your strain</div><div style="font-size:12.5px"><i>${P.sp.n}</i>. <b>${P.sp.a}:</b> ${P.sp.d}<br><b>${P.fm.n}:</b> ${P.fm.d}</div></div></div>`}
 
 /* ---------------- tutorial ---------------- */
 const TUT={on:false,i:0,base:0,steps:[
@@ -602,99 +689,126 @@ const TUT={on:false,i:0,base:0,steps:[
  {t:'Antibiotic waves: every 4 rounds, a wave kills every cell inside a red striped band. The band appears one round early, so you can stop growing there or get Resistance.',next:true},
  {t:'Invading: when an enemy cell touches yours, it shows red corner marks. Click it to take it over (3 ATP, more if they have defences).',next:true},
  {t:'That is everything. Keep playing this game, or open the Menu to start a real one. Good luck.',next:true,last:true}],
- start(){this.on=true;this.i=0;startLocal({n:2,shape:'Square',size:'Custom',custom:12,rounds:20,mode:'Random offers',diff:'Easy'},[{human:true,sp:'eco',fm:'ribo'},{human:false,sp:'pae',fm:'alg'}],12345);this.base=PE.count(0);this.show()},
+ start(){this.on=true;this.i=0;startLocal({n:2,shape:'Square',size:'Custom',custom:12,rounds:20,mode:'Random offers',diff:'Easy'},[{human:true,sp:'eco',fm:'ribo'},{human:false,sp:'pae',fm:'slime'}],12345);this.base=PE.count(0);this.show()},
  show(){const el=$('#coach');if(!this.on||!S){el.style.display='none';R2.setPulse([]);R2.setInset(0);return}R2.setInset(Math.min(390,$('#board').clientWidth*.4));const st=this.steps[this.i];el.style.display='block';
   el.innerHTML=`<div class="k">Tutorial, step ${this.i+1} of ${this.steps.length}</div><p>${st.t}</p><div class="row">${st.next||st.nextLabel?`<button class="btn pri" data-a="tnext">${st.last?'Finish':st.nextLabel||'Next'}</button>`:''}<button class="btn" data-a="tquit">Close tutorial</button></div>`;
   sel();R2.setPulse(st.pulse?st.pulse():[])},
  check(){if(!this.on||!S)return;sel();const st=this.steps[this.i];if(st.done&&st.done()){this.i=Math.min(this.steps.length-1,this.i+1);this.base=PE.count(0)}this.show()},
  next(){if(this.steps[this.i].last){this.quit();return}this.i++;this.show()},quit(){this.on=false;this.show()}};
 
-/* ---------------- menus ---------------- */
-let modalKind='',tab='local';
-function openModal(h,kind){modalKind=kind||'';$('#mbox').innerHTML=h;$('#modal').classList.add('show')}
-function closeModal(){modalKind='';$('#modal').classList.remove('show')}
+/* ---------------- screens ---------------- */
+let screenKind='',tab='local';
+function openScreen(h,kind){screenKind=kind;const el=$('#screen');el.innerHTML=`<div class="page">${h}</div>`;el.classList.add('show');el.scrollTop=0;bindInputs();$('#tip').style.display='none'}
+function closeScreen(){screenKind='';$('#screen').classList.remove('show')}
+function openModal(h,kind){$('#mbox').innerHTML=h;$('#modal').classList.add('show')}
+function closeModal(){$('#modal').classList.remove('show')}
+const topbar=back=>`<div class="pagetop">${back?`<button class="btn" data-a="${back}">← Back</button>`:''}<div class="sp"></div><button class="btn icon" data-a="theme" aria-label="Toggle light or dark theme">${theme==='dark'?SUN:MOON}</button></div>`;
 const chips=(a,vals,cur,lab)=>vals.map((v,i)=>`<button class="btn ${v===cur?'on':''}" data-a="${a}" data-v="${v}">${lab?lab[i]:v}</button>`).join('');
 const spOpts=cur=>`<option value="random">Random species</option>`+PE.SPECIES.map(s=>`<option value="${s.id}" ${cur===s.id?'selected':''}>${s.n}</option>`).join('');
 const fmOpts=cur=>`<option value="random">Random starting mutation</option>`+PE.FOUNDERS.map(s=>`<option value="${s.id}" ${cur===s.id?'selected':''}>${s.n}</option>`).join('');
-function guideHTML(){return `<h2>Species (choose one)</h2><div class="grid2">${PE.SPECIES.map(s=>`<div class="info"><b><i>${s.n}</i></b><div>${s.w}</div><div style="color:var(--ink)"><b>${s.a}.</b> ${s.d}</div></div>`).join('')}</div>
- <h2>Starting mutation (choose one, works with any species)</h2><div class="grid2">${PE.FOUNDERS.map(s=>`<div class="info"><b>${s.n}</b><div>${s.w}</div><div style="color:var(--ink)">${s.d}</div></div>`).join('')}</div>`}
+function guideHTML(){return `<h2>Species (one per player)</h2><div class="grid2">${PE.SPECIES.map(s=>`<div class="info"><b><i>${s.n}</i></b><div>${s.w}</div><div style="color:var(--ink);margin-top:4px"><b>${s.a}:</b> ${s.d}</div></div>`).join('')}</div>
+ <h2>Starting mutations (one per player, any species can take any of them)</h2><div class="grid2">${PE.FOUNDERS.map(s=>`<div class="info"><b>${s.n}</b><div>${s.w}</div><div style="color:var(--ink);margin-top:4px">${s.d}</div></div>`).join('')}</div>`}
 function settingsHTML(){const AN=PE.AUTO[cfg.n];return `<h2>Dish</h2><div class="row">${chips('shape',['Circle','Square'],cfg.shape)}<span style="width:12px"></span>${chips('size',['Auto','Custom'],cfg.size)}
  ${cfg.size==='Custom'?`<input type="number" id="csz" min="8" max="40" value="${cfg.custom}" style="width:90px"><span class="mut">tiles across (8 to 40)</span>`:`<span class="mut">${AN} by ${AN} tiles</span>`}</div>
  <h2>Rules</h2><div class="row"><span class="mut">Rounds</span>${chips('rounds',[15,20,30],cfg.rounds)}<span style="width:12px"></span><span class="mut">Mutations</span>${chips('mode',['Random offers','Pick from tree'],cfg.mode)}<span style="width:12px"></span><span class="mut">Computer players</span>${chips('diff',['Easy','Normal','Hard'],cfg.diff)}</div>
- <p class="mut" style="font-size:13px">Random offers: pay ATP, then choose 1 of 3 random traits (closer to real evolution). Pick from tree: buy any trait you have unlocked. Later players start with a little extra ATP to make up for moving later.</p>`}
-function showMenu(){ensureSeats();const n=cfg.n;
- const local=`<h2>Players</h2><div class="row">${chips('n',[2,3,4,5,6,7,8,9,10],n)}</div><div style="margin-top:8px">${seats.slice(0,n).map((s,i)=>`<div class="seat"><span class="dot" style="background:${COL[i]}"></span><button class="btn ${s.human?'on':''}" data-a="hum" data-v="${i}">${s.human?'Human':'Computer'}</button><select data-sp="${i}" aria-label="Species, player ${i+1}">${spOpts(s.sp)}</select><select data-fm="${i}" aria-label="Starting mutation, player ${i+1}">${fmOpts(s.fm)}</select></div>`).join('')}</div>
-  <p class="mut" style="font-size:13px">Several humans take turns on this device. Computer players fill the other seats.</p>${settingsHTML()}<div class="row" style="margin-top:16px"><button class="btn pri" data-a="go">Start game</button><button class="btn" data-a="tut">Tutorial</button>${S?'<button class="btn" data-a="close">Back to game</button>':''}</div>${guideHTML()}`;
- const name=esc(store.get('petri-name')||'');
- const online=onlineReady()?`<p>Every player opens this same page on their own device. One person hosts and shares the 4-letter code.</p>
+ <p class="mut" style="font-size:13px">Random offers: pay ATP, then choose 1 of 3 random traits (closer to real evolution). Pick from tree: buy any trait you have unlocked. Players who move later start with a little extra ATP to make it fair.</p>`}
+function homeArt(){const c=$('#homeArt');if(!c)return;const g=c.getContext('2d'),W=c.width,live=S;
+ const T=PE.newGame({shape:'Circle',size:'Custom',custom:18,rounds:20,mode:'Random offers',diff:'Normal'},[0,1,2,3].map(()=>({human:false,sp:'none',fm:'none'})),2026);T.sim=true;PE.bind(T);for(let k=0;k<22&&!T.over;k++)PE.aiTurn();
+ const cs=getComputedStyle(document.documentElement),gv=k=>cs.getPropertyValue(k).trim(),N=T.N,s=W/(N+1.4),ox=(W-s*N)/2;g.clearRect(0,0,W,W);
+ g.fillStyle=gv('--agar');g.strokeStyle=gv('--rim');g.lineWidth=s*.14;g.beginPath();g.arc(W/2,W/2,N*s/2+s*.45,0,7);g.fill();g.stroke();
+ for(let i=0;i<N*N;i++){if(!T.land[i])continue;const r=(i/N)|0,c2=i%N,x=ox+c2*s,y=ox+r*s,o=T.grid[i];g.fillStyle=o>=0?COL[o]:gv('--cell');g.beginPath();g.roundRect(x+s*.06,y+s*.06,s*.88,s*.88,s*.24);g.fill();
+  if(o>=0){if(c2<N-1&&T.grid[i+1]===o)g.fillRect(x+s/2,y+s*.06,s,s*.88);if(r<N-1&&T.grid[i+N]===o)g.fillRect(x+s*.06,y+s/2,s*.88,s);if(c2<N-1&&r<N-1&&T.grid[i+1]===o&&T.grid[i+N]===o&&T.grid[i+N+1]===o)g.fillRect(x+s/2,y+s/2,s,s)}}
+ for(let i=0;i<N*N;i++){const k=T.tile[i];if(k&&T.land[i]&&T.grid[i]<0)R2icon(g,k,ox+(i%N)*s+s/2,ox+((i/N)|0)*s+s/2,s)}
+ PE.bind(live)}
+function showHome(){const live=S&&!S.over&&!TUT.on;openScreen(`${topbar('')}<div class="home"><div><h1>Petri</h1><p class="tag">A strategy game on a petri dish. Pick a real bacterium, spread across the agar, evolve new traits, and survive the antibiotic waves.</p><div class="menu">
+ ${live?'<button class="btn pri" data-a="resume">Resume game</button>':''}<button class="btn ${live?'':'pri'}" data-a="local">Play on this device</button><button class="btn" data-a="online">Play online</button><button class="btn" data-a="tut">Tutorial</button><button class="btn" data-a="rules">How to play</button></div></div><canvas id="homeArt" width="560" height="560" aria-label="A petri dish with four bacterial colonies"></canvas></div>`,'home');homeArt()}
+function showLocal(){ensureSeats();const n=cfg.n;openScreen(`${topbar('home')}<h1>New game on this device</h1><p class="mut">Several people can take turns on one device. Computer players fill the other seats.</p>
+ <h2>Players</h2><div class="row">${chips('n',[2,3,4,5,6,7,8,9,10],n)}</div><div style="margin-top:8px">${seats.slice(0,n).map((s2,i)=>`<div class="seat"><span class="dot" style="background:${COL[i]}"></span><button class="btn ${s2.human?'on':''}" data-a="hum" data-v="${i}">${s2.human?'Human':'Computer'}</button><select data-sp="${i}" aria-label="Species, player ${i+1}">${spOpts(s2.sp)}</select><select data-fm="${i}" aria-label="Starting mutation, player ${i+1}">${fmOpts(s2.fm)}</select></div>`).join('')}</div>
+ ${settingsHTML()}<div class="row" style="margin-top:16px"><button class="btn pri" data-a="go" style="min-height:46px;padding:0 22px">Start game</button></div>${guideHTML()}`,'local')}
+function showOnline(){const name=esc(store.get('petri-name')||'');
+ openScreen(`${topbar('home')}<h1>Play online</h1>${onlineReady()?`<p>Every player opens this same page on their own device. One person creates a game and shares the 4-letter code.</p>
   <h2>Your name</h2><input type="text" id="nm" maxlength="16" value="${name}" placeholder="First name or nickname" style="max-width:320px">
-  <div class="grid2" style="margin-top:14px"><div class="info"><b>Host a game</b><p>Set the dish and players, then share the code.</p>${settingsHTML()}<h2>Seats</h2><div class="row">${chips('n',[2,3,4,5,6,7,8,9,10],n)}</div><div class="row" style="margin-top:10px"><button class="btn pri" data-a="host">Create game</button></div></div>
+  <div class="grid2" style="margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))"><div class="info"><b>Create a game</b>${settingsHTML()}<h2>Number of seats</h2><div class="row">${chips('n',[2,3,4,5,6,7,8,9,10],cfg.n)}</div><div class="row" style="margin-top:12px"><button class="btn pri" data-a="host">Create game</button></div></div>
   <div class="info"><b>Join a game</b><p>Type the code from the host.</p><div class="row"><input class="code" id="jc" maxlength="4" placeholder="CODE" value="${esc((params.get('code')||'').toUpperCase())}"><button class="btn pri" data-a="join">Join</button></div></div></div>`
-  :`<p>Online play is not switched on in this copy of the game yet.</p><div class="info"><b>For the person who sets the game up (one time only)</b><p>Online play uses a free Google Firebase Realtime Database, the same way the class example does. Create a Firebase project with a Realtime Database, copy its web config, and paste it into <b>FIREBASE_CONFIG</b> near the top of this file. Then put the file on GitHub Pages and share the link. Players never install anything.</p></div>`;
- openModal(`<h1>Petri</h1><div class="mut">A territory game on a petri dish. Each player is a real bacterial species.</div>
- <div class="tabs"><button class="tab ${tab==='local'?'on':''}" data-a="tab" data-v="local">This device</button><button class="tab ${tab==='online'?'on':''}" data-a="tab" data-v="online">Online</button></div>${tab==='local'?local:online}`,'menu');
- bindMenuInputs()}
-function bindMenuInputs(){document.querySelectorAll('#mbox select[data-sp]').forEach(s=>s.onchange=()=>{seats[+s.dataset.sp].sp=s.value});document.querySelectorAll('#mbox select[data-fm]').forEach(s=>s.onchange=()=>{seats[+s.dataset.fm].fm=s.value});
- const cz=$('#csz');if(cz)cz.oninput=()=>{cfg.custom=+cz.value};const nm=$('#nm');if(nm)nm.oninput=()=>store.set('petri-name',nm.value.trim())}
-function showLobby(){openModal('<div id="lobby"></div>','lobby');renderLobby()}
+  :`<p>Online play is not switched on in this copy of the game yet. The person who runs the game sets it up once, then everyone else just opens the link.</p><div class="row"><button class="btn pri" data-a="guide">Show the setup guide</button></div>`}`,'online')}
+function showGuide(){const rules='{\n  "rules": {\n    "petri": {\n      ".read": true,\n      ".write": true,\n      ".indexOn": ["createdAt"]\n    }\n  }\n}';
+ openScreen(`${topbar('online')}<h1>Online setup guide</h1><p>Online play uses a free Google Firebase Realtime Database, the same way the class example does. Only the person hosting the game files does this, once. Players never install anything.</p>
+ <h2>Part 1: Create the database</h2><ol><li>Open <b>console.firebase.google.com</b> and sign in with a Google account.</li><li>Create a new project. Any name works. Google Analytics is optional.</li>
+ <li>In the console, go to <b>Databases &amp; Storage</b>, then <b>Realtime Database</b>, and click <b>Create database</b>. Choose a location, then choose <b>Test mode</b>.</li>
+ <li>Test mode switches itself off after a trial period, so open the database's <b>Rules</b> tab, replace everything with the rules below, and publish them. They keep the game working and only open the <code>petri</code> folder.</li></ol>
+ <pre style="background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto">${rules}</pre><button class="btn" data-a="copyrules">Copy rules</button>
+ <h2>Part 2: Copy the config into the game</h2><ol start="5"><li>Go back to the project overview page and click the <b>Web</b> icon to add a web app. Give it any nickname and click <b>Register app</b>.</li>
+ <li>Firebase shows a block of code with <code>firebaseConfig</code> in it. Copy the values (apiKey, authDomain, databaseURL, projectId and so on).</li>
+ <li>If there is no <code>databaseURL</code> line, copy the database URL from the top of the Realtime Database page and add it yourself. The game needs it.</li>
+ <li>Open <code>petri.html</code> in a text editor, find <code>FIREBASE_CONFIG</code> near the top of the second script, and replace the placeholder values with yours.</li></ol>
+ <h2>Part 3: Put it on the web</h2><ol start="9"><li>Push <code>petri.html</code> to your public GitHub repository.</li><li>In the repository: <b>Settings</b>, then <b>Pages</b> (under Code and automation). Under Build and deployment, set Source to <b>Deploy from a branch</b>, pick <b>main</b> and <b>/(root)</b>, and save.</li>
+ <li>After a minute or two the game is at <code>https://YOUR-USERNAME.github.io/REPOSITORY/petri.html</code>. Share that link.</li></ol>
+ <h2>Testing without Firebase</h2><p>Add <code>?local</code> to the end of the address and open the page in two tabs of the same browser. The tabs talk to each other, so you can try hosting and joining alone.</p>`,'guide')}
+function showLobby(){openScreen('<div id="lobby"></div>','lobby');renderLobby()}
 function renderLobby(){const el=$('#lobby');if(!el||!NET.g)return;const g=NET.g,st=asArr(g.seats),host=g.host===NET.uid,link=location.origin+location.pathname+'?code='+NET.code+(LOCALNET?'&local':'');
- el.innerHTML=`<h1>Game code</h1><div class="bigcode">${NET.code}</div><p class="mut">Share this code, or this link: <span style="color:var(--ink)">${esc(link)}</span></p>
- <h2>Seats</h2>${st.map((s,i)=>{const mine=s.uid===NET.uid,on=s.kind==='human'&&presenceOf(s.uid);return `<div class="seat"><span class="dot" style="background:${COL[i]}"></span>
-  <span>${s.kind==='human'?`<b>${esc(s.name||'Player')}</b>${mine?' (you)':''}${on?'':' <span class="mut">(offline)</span>'}`:s.kind==='ai'?'Computer':'<span class="mut">Open seat</span>'}</span>
-  ${(mine||(host&&s.kind==='ai'))?`<select data-lsp="${i}">${spOpts(s.sp)}</select><select data-lfm="${i}">${fmOpts(s.fm)}</select>`:`<span class="mut">${s.sp==='random'?'Random species':PE.SPECIES.find(x=>x.id===s.sp).n}</span><span class="mut">${s.fm==='random'?'Random mutation':PE.FOUNDERS.find(x=>x.id===s.fm).n}</span>`}
-  ${host&&!mine&&s.kind!=='human'?`<button class="btn" data-a="lkind" data-v="${i}" style="grid-column:2">${s.kind==='ai'?'Make open':'Make computer'}</button>`:''}</div>`}).join('')}
+ el.innerHTML=`${topbar('lleave')}<h1>Game code</h1><div class="bigcode">${NET.code}</div><p class="mut">Share this code, or this link: <span style="color:var(--ink)">${esc(link)}</span></p>
+ <h2>Seats</h2>${st.map((x,i)=>{const mine=x.uid===NET.uid,on=x.kind==='human'&&presenceOf(x.uid);return `<div class="seat"><span class="dot" style="background:${COL[i]}"></span>
+  <span>${x.kind==='human'?`<b>${esc(x.name||'Player')}</b>${mine?' (you)':''}${on?'':' <span class="mut">(offline)</span>'}`:x.kind==='ai'?'Computer':'<span class="mut">Open seat</span>'}</span>
+  ${(mine||(host&&x.kind==='ai'))?`<select data-lsp="${i}">${spOpts(x.sp)}</select><select data-lfm="${i}">${fmOpts(x.fm)}</select>`:`<span class="mut">${x.sp==='random'?'Random species':PE.SPECIES.find(y=>y.id===x.sp).n}</span><span class="mut">${x.fm==='random'?'Random mutation':PE.FOUNDERS.find(y=>y.id===x.fm).n}</span>`}
+  ${host&&!mine&&x.kind!=='human'?`<button class="btn" data-a="lkind" data-v="${i}" style="grid-column:2">${x.kind==='ai'?'Make open':'Make computer'}</button>`:''}</div>`}).join('')}
  <p class="mut" style="font-size:13px">Open seats become computer players when the game starts.</p>
- <div class="row" style="margin-top:12px">${host?'<button class="btn pri" data-a="lstart">Start game</button>':'<span class="mut">Waiting for the host to start…</span>'}<button class="btn" data-a="lleave">Leave</button></div>`;
- el.querySelectorAll('select[data-lsp]').forEach(s=>s.onchange=()=>lobbySet(+s.dataset.lsp,'sp',s.value));el.querySelectorAll('select[data-lfm]').forEach(s=>s.onchange=()=>lobbySet(+s.dataset.lfm,'fm',s.value))}
+ <div class="row" style="margin-top:12px">${host?'<button class="btn pri" data-a="lstart">Start game</button>':'<span class="mut">Waiting for the host to start…</span>'}<button class="btn" data-a="lleave">Leave</button></div>${guideHTML()}`;bindInputs()}
 function lobbySet(i,k,v){NET.net.transact('petri/'+NET.code,cur=>{if(cur===null)return null;if(cur.status!=='lobby')return undefined;const st=asArr(cur.seats);if(!st[i])return undefined;st[i][k]=v;cur.seats=st;return cur})}
+function bindInputs(){const sc=$('#screen');sc.querySelectorAll('select[data-sp]').forEach(x=>x.onchange=()=>{seats[+x.dataset.sp].sp=x.value});sc.querySelectorAll('select[data-fm]').forEach(x=>x.onchange=()=>{seats[+x.dataset.fm].fm=x.value});
+ sc.querySelectorAll('select[data-lsp]').forEach(x=>x.onchange=()=>lobbySet(+x.dataset.lsp,'sp',x.value));sc.querySelectorAll('select[data-lfm]').forEach(x=>x.onchange=()=>lobbySet(+x.dataset.lfm,'fm',x.value));
+ const cz=$('#csz');if(cz)cz.oninput=()=>{cfg.custom=+cz.value};const nm=$('#nm');if(nm)nm.oninput=()=>store.set('petri-name',nm.value.trim())}
 function rulesHTML(){const ic=k=>`<canvas width="28" height="28" data-icon="${k}"></canvas>`;return `<h1>How to play</h1>
  <p>Each player is a bacterial colony on a petri dish. Own the most cells when the last round ends, or hold half the dish, or be the last colony alive.</p>
- <h2>On your turn</h2><p>You get <b>ATP</b> (energy): 3 base, +1 for every 10 cells, plus special tiles you own and some traits. You can bank up to 20.</p>
- <ul><li><b>Grow</b>: click an empty tile next to your colony (small dots). 1 ATP.</li><li><b>Invade</b>: click an enemy cell that touches yours (red corner marks). 3 ATP, more if they have defences.</li><li><b>Mutate</b>: get a new trait. See the Mutation tree.</li><li><b>End turn</b> when you are done.</li></ul>
+ <h2>On your turn</h2><p>You get <b>ATP</b> (energy): 3 base, +1 for every 10 cells, plus the special tiles you own and some traits. You can bank up to 20. The bar at the bottom shows where your ATP comes from.</p>
+ <ul><li><b>Grow</b>: click an empty tile next to your colony (small dots show where). 1 ATP.</li><li><b>Invade</b>: click an enemy cell touching yours (red corner marks). 3 ATP, more if they have defences.</li><li><b>Mutate</b>: pay ATP and pick a new trait. The Mutation tree shows every trait and what it would give you right now.</li><li><b>End turn</b> when you are done.</li></ul>
  <h2>Special tiles</h2><div class="legend">${Object.keys(TL).map(k=>`<div>${ic(k)}<span><b>${TL[k].n}</b>: ${TL[k].d}</span></div>`).join('')}</div>
  <h2>Antibiotic waves</h2><p>Every 4 rounds a wave kills every cell inside a red striped band. The band appears one round before it hits. Resistance protects you completely; some traits let half your cells survive.</p>
- <h2>Controls</h2><p>Scroll or pinch to zoom, drag to move the dish, hover a tile for details, press T for the mutation tree. 3D view: drag to turn, right-drag to move.</p>${guideHTML()}`}
-function drawLegendIcons(){document.querySelectorAll('#mbox canvas[data-icon]').forEach(c=>{const g=c.getContext('2d'),s=28;g.clearRect(0,0,s,s);g.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--cell');g.beginPath();g.roundRect(0,0,s,s,6);g.fill();R2icon(g,c.dataset.icon,s/2,s/2,s*1.3)})}
-function R2icon(g,k,cx,cy,s){const col=getComputedStyle(document.documentElement).getPropertyValue('--ink').trim();g.save();g.strokeStyle=col;g.fillStyle=col;g.lineWidth=1.6;g.lineCap='round';const r=s*.22,hex=(x,y,rr)=>{g.beginPath();for(let k=0;k<6;k++){const a=Math.PI/6+k*Math.PI/3;g[k?'lineTo':'moveTo'](x+rr*Math.cos(a),y+rr*Math.sin(a))}g.closePath()};
+ <h2>Controls</h2><p>Scroll or pinch to zoom, drag to move the dish, hover a tile for details, press T for the mutation tree. On a phone, tap once to see a tile and tap again to act.</p>${guideHTML()}`}
+function drawLegendIcons(){document.querySelectorAll('#screen canvas[data-icon]').forEach(c=>{const g=c.getContext('2d'),s=28;g.clearRect(0,0,s,s);g.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--cell');g.beginPath();g.roundRect(0,0,s,s,6);g.fill();R2icon(g,c.dataset.icon,s/2,s/2,s*1.3)})}
+function R2icon(g,k,cx,cy,s){const col=getComputedStyle(document.documentElement).getPropertyValue('--icon').trim();g.save();g.strokeStyle=col;g.fillStyle=col;g.lineWidth=Math.max(1.4,s*.08);g.lineCap='round';g.lineJoin='round';const r=s*.22,hex=(x,y,rr)=>{g.beginPath();for(let k=0;k<6;k++){const a=Math.PI/6+k*Math.PI/3;g[k?'lineTo':'moveTo'](x+rr*Math.cos(a),y+rr*Math.sin(a))}g.closePath()};
  if(k==='glu'){hex(cx,cy,r);g.stroke()}else if(k==='lac'){hex(cx-r*.85,cy,r*.75);g.stroke();hex(cx+r*.85,cy,r*.75);g.stroke()}else if(k==='fe'){g.beginPath();g.moveTo(cx,cy-r*1.1);g.lineTo(cx+r*.8,cy);g.lineTo(cx,cy+r*1.1);g.lineTo(cx-r*.8,cy);g.closePath();g.fill()}
  else if(k==='o2'){g.beginPath();g.arc(cx-r*.25,cy+r*.15,r*.75,0,7);g.stroke();g.beginPath();g.arc(cx+r*.75,cy-r*.6,r*.38,0,7);g.stroke()}else if(k==='phg'){hex(cx,cy-r*.55,r*.55);g.fill();g.beginPath();g.moveTo(cx,cy);g.lineTo(cx,cy+r*.7);g.lineTo(cx-r*.7,cy+r*1.15);g.moveTo(cx,cy+r*.7);g.lineTo(cx+r*.7,cy+r*1.15);g.stroke()}
  else if(k==='dna'){for(const sg of[1,-1]){g.beginPath();for(let t=0;t<=1.001;t+=.05){const x=cx-r*1.1+t*r*2.2,y=cy+sg*Math.sin(t*Math.PI*2)*r*.7;t?g.lineTo(x,y):g.moveTo(x,y)}g.stroke()}}g.restore()}
-function showRules(){openModal(rulesHTML()+`<div class="row" style="margin-top:14px"><button class="btn pri" data-a="${S?'close':'menu'}">Back</button></div>`,'rules');drawLegendIcons()}
+function showRules(){openScreen(topbar(S&&!S.over?'resume':'home')+rulesHTML(),'rules');drawLegendIcons()}
 function showEnd(){if(!S)return;const r=S.players.map((P,i)=>({P,i,c:PE.count(i)})).sort((a,b)=>b.c-a.c);
  openModal(`<h1 style="color:${COL[r[0].P.ci]}">${esc(r[0].P.name)} ${r[0].P.name==='You'?'win':'wins'}</h1><p class="mut"><i>${r[0].P.sp.n}</i> with ${r[0].P.fm.n} took over the dish with ${r[0].c} cells.</p>
  <table class="rk">${r.map((x,k)=>`<tr><td>${k+1}</td><td><span class="dot" style="background:${COL[x.P.ci]}"></span> <b>${esc(x.P.name)}</b><div class="mut" style="font-size:12px"><i>${x.P.sp.n}</i> + ${x.P.fm.n}</div></td><td style="text-align:right;white-space:nowrap">${x.c} cells</td><td class="mut" style="font-size:12px">${[...x.P.tr].map(k=>TREE[k].n).join(', ')||'No traits'}</td></tr>`).join('')}</table>
- <div class="row" style="margin-top:14px"><button class="btn pri" data-a="menu">New game</button><button class="btn" data-a="close">Look at the dish</button></div>`,'end')}
+ <div class="row" style="margin-top:14px"><button class="btn pri" data-a="home">Main menu</button><button class="btn" data-a="close">Look at the dish</button></div>`,'end')}
+function rerenderScreen(){({home:showHome,local:showLocal,online:showOnline,guide:showGuide,rules:showRules,lobby:showLobby}[screenKind]||(()=>{}))()}
 
 /* ---------------- events ---------------- */
 document.addEventListener('click',e=>{const t=e.target.closest('[data-a]');if(!t)return;const a=t.dataset.a,v=t.dataset.v;
  switch(a){
   case'tree':treeOpen=!treeOpen;$('#tree').classList.toggle('open',treeOpen);refresh();return;
-  case'results':showEnd();return;case'menu':showMenu();return;case'close':closeModal();return;
-  case'tnext':TUT.next();return;case'tquit':TUT.quit();return;case'tut':TUT.start();return;
-  case'tab':tab=v;showMenu();return;
-  case'n':cfg.n=+v;if(!seats.slice(0,cfg.n).some(s=>s.human))seats[0].human=true;showMenu();return;
-  case'hum':{const s=seats[+v];s.human=!s.human;if(!seats.slice(0,cfg.n).some(x=>x.human))s.human=true;showMenu();return}
-  case'shape':cfg.shape=v;showMenu();return;case'size':cfg.size=v;showMenu();return;case'rounds':cfg.rounds=+v;showMenu();return;case'mode':cfg.mode=v;showMenu();return;case'diff':cfg.diff=v;showMenu();return;
-  case'go':TUT.quit();startLocal({...cfg},seats.slice(0,cfg.n).map(s=>({...s})));return;
+  case'tsel':treeSel=v;renderTree();return;
+  case'results':showEnd();return;case'home':closeModal();showHome();return;case'close':closeModal();return;
+  case'resume':closeScreen();return;case'local':showLocal();return;case'online':tab='online';showOnline();return;case'guide':showGuide();return;case'rules':showRules();return;
+  case'theme':theme=theme==='dark'?'light':'dark';store.set('petri-theme',theme);applyTheme();rerenderScreen();return;
+  case'copyrules':{const txt='{"rules":{"petri":{".read":true,".write":true,".indexOn":["createdAt"]}}}';try{navigator.clipboard.writeText(txt).then(()=>toast('Rules copied.'),()=>toast('Select the rules and copy them by hand.'))}catch(_){toast('Select the rules and copy them by hand.')}return}
+  case'tnext':TUT.next();return;case'tquit':TUT.quit();return;case'tut':closeModal();TUT.start();return;
+  case'n':cfg.n=+v;if(!seats.slice(0,cfg.n).some(x=>x.human))seats[0].human=true;rerenderScreen();return;
+  case'hum':{const x=seats[+v];x.human=!x.human;if(!seats.slice(0,cfg.n).some(y=>y.human))x.human=true;showLocal();return}
+  case'shape':cfg.shape=v;rerenderScreen();return;case'size':cfg.size=v;rerenderScreen();return;case'rounds':cfg.rounds=+v;rerenderScreen();return;case'mode':cfg.mode=v;rerenderScreen();return;case'diff':cfg.diff=v;rerenderScreen();return;
+  case'go':TUT.quit();startLocal({...cfg},seats.slice(0,cfg.n).map(x=>({...x})));return;
   case'host':{const nm=(($('#nm')||{}).value||'').trim();if(!nm)return toast('Type your name first.');store.set('petri-name',nm);hostGame(nm);return}
   case'join':{const nm=(($('#nm')||{}).value||'').trim();if(!nm)return toast('Type your name first.');store.set('petri-name',nm);joinGame(($('#jc')||{}).value,nm);return}
-  case'lkind':NET.net.transact('petri/'+NET.code,cur=>{if(cur===null)return null;if(cur.status!=='lobby')return undefined;const st=asArr(cur.seats);const s=st[+v];if(!s||s.kind==='human')return undefined;s.kind=s.kind==='ai'?'open':'ai';cur.seats=st;return cur});return;
-  case'lstart':NET.net.transact('petri/'+NET.code,cur=>{if(cur===null)return null;if(cur.status!=='lobby'||cur.host!==NET.uid)return undefined;cur.seats=asArr(cur.seats).map(s=>s.kind==='open'?{...s,kind:'ai'}:s);cur.status='play';cur.seed=(Math.random()*2**31)>>>0;return cur});return;
-  case'lleave':leaveOnline();showMenu();return;
+  case'lkind':NET.net.transact('petri/'+NET.code,cur=>{if(cur===null)return null;if(cur.status!=='lobby')return undefined;const st=asArr(cur.seats);const x=st[+v];if(!x||x.kind==='human')return undefined;x.kind=x.kind==='ai'?'open':'ai';cur.seats=st;return cur});return;
+  case'lstart':NET.net.transact('petri/'+NET.code,cur=>{if(cur===null)return null;if(cur.status!=='lobby'||cur.host!==NET.uid)return undefined;cur.seats=asArr(cur.seats).map(x=>x.kind==='open'?{...x,kind:'ai'}:x);cur.status='play';cur.seed=(Math.random()*2**31)>>>0;return cur});return;
+  case'lleave':leaveOnline();showOnline();return;
   case'toai':if(NET.on&&S){const i=+v;if(S.players[i]&&S.players[i].human&&!presenceOf(S.players[i].uid)){const log=asArr(NET.g.log);NET.net.transact(`petri/${NET.code}/log`,cur=>{const l=asArr(cur);if(l.length!==log.length)return undefined;l.push({t:'toAI',target:i});return l})}}return;
  }
  if(!S||!UI.canAct())return;
  if(a==='mut')send({t:'mut'});else if(a==='conj')send({t:'conj'});else if(a==='pick')send({t:'pick',k:v});else if(a==='buy')send({t:'buy',k:v});
- else if(a==='aim'){UI.aim=!UI.aim;refresh()}else if(a==='rot')send({t:'rot'});else if(a==='end'){UI.aim=false;send({t:'end'})}});
-addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName))return;
+ else if(a==='aim'){UI.aim=!UI.aim;UI.spore=false;refresh()}else if(a==='spore'){UI.spore=!UI.spore;UI.aim=false;refresh()}else if(a==='rot')send({t:'rot'});else if(a==='end'){UI.aim=false;UI.spore=false;send({t:'end'})}});
+addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||screenKind)return;
  if(e.key==='t'||e.key==='T'){treeOpen=!treeOpen;$('#tree').classList.toggle('open',treeOpen);refresh()}else if(e.key==='Escape'){treeOpen=false;$('#tree').classList.remove('open')}});
 $('#bTree').onclick=()=>{treeOpen=!treeOpen;$('#tree').classList.toggle('open',treeOpen);refresh()};
-$('#bRules').onclick=showRules;$('#bNew').onclick=showMenu;$('#fit').onclick=()=>VIEW.r().fit();
-$('#bTheme').onclick=()=>{theme=theme==='dark'?'light':'dark';store.set('petri-theme',theme);applyTheme();if(modalKind==='rules')drawLegendIcons()};
+$('#bRules').onclick=showRules;$('#bNew').onclick=showHome;$('#fit').onclick=()=>VIEW.r().fit();
+$('#bTheme').onclick=()=>{theme=theme==='dark'?'light':'dark';store.set('petri-theme',theme);applyTheme()};
 $('#bView').onclick=()=>VIEW.set(VIEW.mode==='2d'?'3d':'2d');
 applyTheme();renderHUD();
-(async()=>{const code=store.get('petri-code');if(code&&onlineReady()){tab='online';if(await netStart()){const g=await NET.net.get('petri/'+code);if(g&&asArr(g.seats).some(s=>s.uid===NET.uid)){joinWatch(code);return}store.set('petri-code',null)}}
- if(params.get('code')&&onlineReady())tab='online';showMenu()})();
+(async()=>{const code=store.get('petri-code');if(code&&onlineReady()){if(await netStart()){const g=await NET.net.get('petri/'+code);if(g&&asArr(g.seats).some(x=>x.uid===NET.uid)){joinWatch(code);return}store.set('petri-code',null)}}
+ if(params.get('code')&&onlineReady()){showOnline();return}showHome()})();
 window.__petri={get S(){return S},PE,UI,send,R2,NET,TUT,startLocal};
 }
 </script>
